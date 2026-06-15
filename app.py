@@ -301,7 +301,7 @@ else:
     html_print = f"""
     <div style="font-family: 'Courier New', Courier, monospace; border: 4px solid #000; padding: 40px; background-color: white; color: black; max-width: 700px; margin: 0 auto;">
         <div style="text-align: center; border-bottom: 3px double #000; padding-bottom: 15px; margin-bottom: 35px;">
-            <h1 style="margin: 0; font-size: 30px; text-transform: uppercase; font-weight: bold; color: black;">ROZKAZ NA WARTĘ OBOSOWĄ</h1>
+            <h1 style="margin: 0; font-size: 30px; text-transform: uppercase; font-weight: bold; color: black;">ROZKAZ NA WARTĘ OBOZOWĄ</h1>
             <h2 style="margin: 8px 0 0 0; font-size: 20px; color: black;">Noc: {wybrany_dzien} / {jutro} 2026 r.</h2>
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 18px;">

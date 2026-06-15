@@ -68,15 +68,18 @@ with st.sidebar:
     
     if uploaded_file:
         try:
-            raw_df = pd.read_excel(uploaded_file, header=None)
+            # Wczytujemy plik i od razu wypełniamy puste komórki (NaN) pustym ciągiem tekstowym
+            raw_df = pd.read_excel(uploaded_file, header=None).fillna("")
+            
             header_row_index = 0
             for idx, row in raw_df.iterrows():
-                row_str = row.astype(str).str.strip().str.lower().tolist()
+                # Bezpieczna konwersja na tekst z pominięciem błędów float
+                row_str = [str(val).strip().lower() for val in row.tolist()]
                 if any('imię' in s or 'imie' in s for s in row_str) and any('nazwisko' in s for s in row_str):
                     header_row_index = idx
                     break
             
-            df = pd.read_excel(uploaded_file, header=header_row_index)
+            df = pd.read_excel(uploaded_file, header=header_row_index).fillna("")
             df.columns = [str(c).strip().lower() for c in df.columns]
             
             if 'imie' in df.columns and 'imię' not in df.columns:
@@ -88,19 +91,20 @@ with st.sidebar:
                 df['nazwisko'] = df['nazwisko'].astype(str).str.strip()
                 df['pelne_nazwisko'] = df['imię'] + " " + df['nazwisko'] + " (" + df['pion'] + ")"
                 
-                # Zabezpieczenie: przy ponownym wgraniu pliku aktualizujemy bazę, ale zachowujemy liczniki jeśli to możliwe
+                # Zabezpieczenie przed usunięciem danych przy ponownym ładowaniu
                 if st.session_state.db_uczestnicy is None:
                     df['liczba_wart'] = 0
                     df['ostatnia_warta'] = "-"
                     st.session_state.db_uczestnicy = df
                 else:
-                    # Odświeżenie listy z zachowaniem ciągłości
                     st.session_state.db_uczestnicy = df.merge(
                         st.session_state.db_uczestnicy[['pelne_nazwisko', 'liczba_wart', 'ostatnia_warta']], 
                         on='pelne_nazwisko', how='left'
                     ).fillna({'liczba_wart': 0, 'ostatnia_warta': "-"})
                 
                 st.success("Baza załadowana pomyślnie!")
+            else:
+                st.error("Błąd kolumn! Wymagane nagłówki: Imię, Nazwisko, Pion.")
         except Exception as e:
             st.error(f"Błąd odczytu: {e}")
 
@@ -124,7 +128,6 @@ else:
         label_visibility="collapsed"
     )
 
-    # Inicjalizacja struktur danych dla wybranego dnia
     if wybrany_dzien not in st.session_state.historia_wart:
         st.session_state.historia_wart[wybrany_dzien] = {godzina: [] for godzina in WARTY_SPECYFIKACJA.keys()}
     if wybrany_dzien not in st.session_state.liczba_straznikow:
@@ -176,17 +179,14 @@ else:
                     
                     aktualny_wybor = plan_dnia[godzina][slot_idx]
                     
-                    # --- PANZERNA LOGIKA WYSZUKIWANIA (BEZ BŁĘDU INDEXERROR) ---
                     idx_default = 0
                     is_manual = False
                     
                     if aktualny_wybor:
-                        # Szukamy pasującej opcji na liście rozwijanej
                         pasujace_opcje = [i for i, o in enumerate(opcje) if aktualny_wybor in o]
                         if pasujace_opcje:
                             idx_default = pasujace_opcje[0]
                         else:
-                            # JEŚLI NIE MA NA LIŚCIE: traktuj jako wpis ręczny (wyjątek bezpieczny dla kodu)
                             idx_default = 1
                             is_manual = True
                             
@@ -210,7 +210,6 @@ else:
                     else:
                         plan_dnia[godzina][slot_idx] = ""
 
-                    # Alerty dla użytkownika
                     if plan_dnia[godzina][slot_idx]:
                         st_name = plan_dnia[godzina][slot_idx]
                         if " (Z)" in st_name and "Z" not in info['preferencja']:

@@ -18,7 +18,6 @@ st.markdown("""
             border: 1px solid #374151;
         }
         
-        /* Klasyczny obozowy styl maszynopisu do druku */
         .rozkaz-kartka {
             background-color: white !important;
             color: black !important;
@@ -48,8 +47,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- INICJALIZACJA ZMIENNYCH W PAMIĘCI ---
-if 'dane_uczestnikow' not in st.session_state: st.session_state.dane_uczestnikow = None
+# --- INICJALIZACJA ZMIENNYCH W PAMIĘCI (SESSION STATE) ---
+if 'baza_excel' not in st.session_state: st.session_state.baza_excel = None
 if 'harmonogram_wart' not in st.session_state: st.session_state.harmonogram_wart = {}
 if 'liczba_wartowników' not in st.session_state: st.session_state.liczba_wartowników = {}
 if 'lokalizacje_wart' not in st.session_state: st.session_state.lokalizacje_wart = {}
@@ -69,9 +68,11 @@ KOLORY_PIONOW = {'Z': '🟡', 'H': '🟢', 'HS': '🔵', 'W': '🔴', 'I': '⚪'
 # --- BOCZNY PANEL - WGÓROWANIE EXCELA ---
 with st.sidebar:
     st.header("📥 Ładowanie Listy Obozowej")
-    plik = st.file_uploader("Wgraj plik Excel (.xlsx)", type=["xlsx"])
     
-    if plik and st.session_state.dane_uczestnikow is None:
+    # Używamy unikalnego klucza, by uploader nie czyścił danych przy przypadkowym resecie
+    plik = st.file_uploader("Wgraj plik Excel (.xlsx)", type=["xlsx"], key="uploader_plików")
+    
+    if plik:
         try:
             df = pd.read_excel(plik).fillna("")
             df.columns = [str(c).strip() for c in df.columns]
@@ -83,56 +84,98 @@ with st.sidebar:
                 elif 'nazw' in cl: mapowanie['Nazwisko'] = col
                 elif 'pion' in cl or 'grupa' in cl: mapowanie['Pion'] = col
                 elif 'druż' in cl or 'druz' in cl: mapowanie['Drużyna'] = col
-                elif 'wart' in cl or 'liczba' in cl: mapowanie['Liczba_Wart'] = col
+                elif 'wart' in cl or 'liczba' in cl: mapowanie['Liczba_Wart_Bazowa'] = col
 
-            final_df = pd.DataFrame()
-            final_df['Imię'] = df[mapowanie.get('Imię', df.columns[0])]
-            final_df['Nazwisko'] = df[mapowanie.get('Nazwisko', df.columns[1])]
-            final_df['Pion'] = df[mapowanie.get('Pion', df.columns[2])].astype(str).str.upper().str.strip()
-            final_df['Drużyna'] = df[mapowanie.get('Drużyna', df.columns[3])] if 'Drużyna' in mapowanie else ""
-            final_df['Liczba_Wart'] = pd.to_numeric(df[mapowanie.get('Liczba_Wart')], errors='coerce').fillna(0).astype(int) if 'Liczba_Wart' in mapowanie else 0
+            nowy_df = pd.DataFrame()
+            nowy_df['Imię'] = df[mapowanie.get('Imię', df.columns[0])]
+            nowy_df['Nazwisko'] = df[mapowanie.get('Nazwisko', df.columns[1])]
+            nowy_df['Pion'] = df[mapowanie.get('Pion', df.columns[2])].astype(str).str.upper().str.strip()
+            nowy_df['Drużyna'] = df[mapowanie.get('Drużyna', df.columns[3])] if 'Drużyna' in mapowanie else ""
+            nowy_df['Liczba_Wart_Bazowa'] = pd.to_numeric(df[mapowanie.get('Liczba_Wart_Bazowa')], errors='coerce').fillna(0).astype(int) if 'Liczba_Wart_Bazowa' in mapowanie else 0
+            nowy_df['Nazwa_Pelna'] = nowy_df['Imię'] + " " + nowy_df['Nazwisko'] + " (" + nowy_df['Pion'] + ")"
             
-            final_df['Nazwa_Pelna'] = final_df['Imię'] + " " + final_df['Nazwisko'] + " (" + final_df['Pion'] + ")"
-            st.session_state.dane_uczestnikow = final_df
-            st.success("Lista wgrana pomyślnie!")
+            # INTELIGENTNE ŁĄCZENIE: Jeśli baza już istnieje, nie nadpisujemy jej na oślep
+            if st.session_state.baza_excel is not None:
+                stara_baza = st.session_state.baza_excel.copy()
+                
+                # Szukamy osób z nowego pliku, których nie ma jeszcze w starej bazie
+                istniejacy_uczestnicy = set(stara_baza['Nazwa_Pelna'])
+                nowe_osoby = nowy_df[~nowy_df['Nazwa_Pelna'].isin(istniejacy_uczestnicy)]
+                
+                if not nowe_osoby.empty:
+                    # Dodajemy tylko nowe osoby do istniejącej struktury
+                    st.session_state.baza_excel = pd.concat([stara_baza, nowe_osoby], ignore_index=True)
+                    st.success(f"Dodano {len(nowe_osoby)} nowych uczestników do istniejącej bazy!")
+                else:
+                    st.info("Ten plik zawiera tych samych uczestników. Historia wart i przypisania pozostały nienaruszone.")
+            else:
+                # Pierwsze załadowanie
+                st.session_state.baza_excel = nowy_df
+                st.success("Lista wgrana i zapamiętana jako baza startowa!")
+                
         except Exception as e:
             st.error(f"Błąd struktury pliku: {e}")
+
+    # Wyświetlenie statusu i opcja twardego resetu aplikacji
+    if st.session_state.baza_excel is not None:
+        st.markdown("---")
+        st.success("✅ Baza uczestników jest bezpieczna w pamięci.")
+        if st.button("🗑️ WYCZYŚĆ WSZYSTKO (Reset bazy i grafików)", type="secondary", use_container_width=True):
+            st.session_state.baza_excel = None
+            st.session_state.harmonogram_wart = {}
+            st.session_state.liczba_wartowników = {}
+            st.session_state.lokalizacje_wart = {}
+            st.rerun()
 
 # --- PANEL GŁÓWNY ---
 st.title("⛺ Kreator i Statystyki Wart Obozowych")
 
-if st.session_state.dane_uczestnikow is None:
-    st.info("Proszę wgrać plik Excel (.xlsx) w panelu bocznym, aby rozpocząć pracę.")
+if st.session_state.baza_excel is None:
+    st.info("💡 Panel boczny: Wgraj arkusz Excel (.xlsx), aby rozpocząć tworzenie harmonogramu.")
 else:
+    df_aktywne = st.session_state.baza_excel.copy()
+    
+    # DYNAMICZNE PRZELICZANIE: Baza startowa + zliczone warty ze wszystkich zapisanych nocy
+    licznik_przydzialow = {}
+    for d_klucz, warty_dniowe in st.session_state.harmonogram_wart.items():
+        for g_klucz, spis_osob in warty_dniowe.items():
+            for os in spis_osob:
+                if os:
+                    licznik_przydzialow[os] = licznik_przydzialow.get(os, 0) + 1
+                    
+    df_aktywne['Liczba_Wart'] = df_aktywne.apply(
+        lambda r: r['Liczba_Wart_Bazowa'] + licznik_przydzialow.get(r['Nazwa_Pelna'], 0), axis=1
+    )
+
     # --- SEKCJA 1: STATYSTYKI I RAPORTY DO POBRANIA ---
     st.header("📊 Analiza i Pobieranie Raportów")
     tab1, tab2, tab3 = st.tabs(["📈 Bieżący Licznik Wart", "🔍 Kto jeszcze nie stał?", "💾 Pobierz Końcowy Excel"])
     
     with tab1:
         st.dataframe(
-            st.session_state.dane_uczestnikow[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']].sort_values('Liczba_Wart'), 
+            df_aktywne[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']].sort_values('Liczba_Wart'), 
             hide_index=True,
             use_container_width=True
         )
         
     with tab2:
-        nie_byli = st.session_state.dane_uczestnikow[st.session_state.dane_uczestnikow['Liczba_Wart'] == 0]
+        nie_byli = df_aktywne[df_aktywne['Liczba_Wart'] == 0]
         if not nie_byli.empty:
-            st.warning(f"Liczba osób, które jeszcze nie odbyły żadnej warty: {len(nie_byli)}")
+            st.warning(f"Liczba osób z zerowym kontem służb: {len(nie_byli)}")
             st.dataframe(nie_byli[['Pion', 'Imię', 'Nazwisko', 'Drużyna']], hide_index=True, use_container_width=True)
         else:
-            st.success("🎉 Wszyscy uczestnicy obozu pełnili już wartę chociaż raz!")
+            st.success("🎉 Wszyscy uczestnicy z listy zaliczyli już co najmniej jedną wartę!")
 
     with tab3:
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            st.session_state.dane_uczestnikow[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart']].to_excel(writer, index=False, sheet_name='Raport Wart')
+            df_aktywne[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart']].to_excel(writer, index=False, sheet_name='Raport Wart')
         buffer.seek(0)
         
         st.download_button(
             label="📥 POBIERZ UAKTUALNIONY ARKUSZ EXCEL (.XLSX)",
             data=buffer,
-            file_name=f"raport_koncowy_wart_{datetime.now().strftime('%d_%m')}.xlsx",
+            file_name=f"raport_wart_{datetime.now().strftime('%d_%m_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
@@ -154,7 +197,6 @@ else:
     idx_dnia = DNI.index(wybrany_dzien)
     poprzedni_dzien = DNI[idx_dnia - 1] if idx_dnia > 0 else None
 
-    # Zbieranie danych wejściowych w formularzu Streamlit
     with st.form(key=f"formularz_wart_{wybrany_dzien}"):
         for godzina, preferowane_piony in GODZINY_WART.items():
             st.markdown(f"<div class='warta-sekcja'>", unsafe_allow_html=True)
@@ -176,7 +218,7 @@ else:
                 kolumny_slotow = st.columns(ile_miejsc)
                 for i in range(ile_miejsc):
                     with kolumny_slotow[i]:
-                        baza = st.session_state.dane_uczestnikow
+                        baza = df_aktywne
                         if wybrane_piony:
                             baza = baza[baza['Pion'].isin(wybrane_piony)]
                         
@@ -217,26 +259,15 @@ else:
                                     st.warning("⚠️ Ta osoba stała wczoraj!")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Przycisk wysyłania formularza trwale zapisujący dane
-        zapisz_klikniete = st.form_submit_button("💾 ZAPISZ GRAFIK I PRZELICZ STATYSTYKI", use_container_width=True, type="primary")
+        zapisz_klikniete = st.form_submit_button("💾 ZAPISZ GRAFIK DLA TEJ NOCY", use_container_width=True, type="primary")
         
         if zapisz_klikniete:
             st.session_state.harmonogram_wart[wybrany_dzien] = dzisiejsze_warty
             st.session_state.lokalizacje_wart[wybrany_dzien] = dzisiejsze_miejsca
-            
-            # Przeliczenie sumy wszystkich wart od nowa
-            st.session_state.dane_uczestnikow['Liczba_Wart'] = 0
-            for d_klucz, warty_dniowe in st.session_state.harmonogram_wart.items():
-                for g_klucz, spis_osob in warty_dniowe.items():
-                    for os in spis_osob:
-                        if os:
-                            match = st.session_state.dane_uczestnikow['Nazwa_Pelna'] == os
-                            if match.any():
-                                st.session_state.dane_uczestnikow.loc[match, 'Liczba_Wart'] += 1
-            st.success("Zapisano pomyślnie!")
+            st.success("Grafik dla tej nocy został pomyślnie zsynchronizowany z bazą danych.")
             st.rerun()
 
-    # Zmiana liczby wartowników poza głównym formularzem (aby uniknąć resetu wyboru)
+    # Zmiana liczby stanowisk
     st.write("🔧 Szybka zmiana liczby stanowisk dla wybranej nocy:")
     c_godz, c_plus, c_minus = st.columns([4, 2, 2])
     with c_godz:

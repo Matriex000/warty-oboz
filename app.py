@@ -33,11 +33,6 @@ st.markdown("""
         .badge-w { color: #ef4444 !important; font-weight: bold; }
         .badge-i { color: #ffffff !important; font-weight: bold; }
         .metric-card { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 10px; padding: 15px; text-align: center; }
-        .print-preview {
-            background: white; color: black; padding: 30px; border-radius: 8px;
-            font-family: 'Courier New', Courier, monospace; border: 2px dashed #334155;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin-top: 15px;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -114,20 +109,20 @@ st.markdown("<div class='main-title'>SYSTEM WART OBOZOWYCH</div>", unsafe_allow_
 if st.session_state.db_uczestnicy is None:
     st.info("Wgraj bazę z pliku Excel w panelu bocznym, aby uruchomić aplikację.")
 else:
-    tab_kreator, tab_druk, tab_statystyki = st.tabs(["📝 Kreator Rozkazu", "🖨️ Druk Rozkazu", "📊 Statystyki i Eksport"])
+    tab_kreator, tab_statystyki = st.tabs(["📝 Kreator Rozkazu", "📊 Statystyki i Eksport"])
     
-    wybrany_dzien = st.selectbox("Wybierz datę:", DNI_OBOZU, format_func=lambda x: f"Noc {x} / {(datetime.strptime(x+'.2026', '%d.%m.%Y') + timedelta(days=1)).strftime('%d.%02m')}")
-
-    if wybrany_dzien not in st.session_state.historia_wart: st.session_state.historia_wart[wybrany_dzien] = {godzina: [] for godzina in WARTY_SPECYFIKACJA.keys()}
-    if wybrany_dzien not in st.session_state.liczba_straznikow: st.session_state.liczba_straznikow[wybrany_dzien] = {godzina: 2 for godzina in WARTY_SPECYFIKACJA.keys()}
-    if wybrany_dzien not in st.session_state.lokalizacje_wart: st.session_state.lokalizacje_wart[wybrany_dzien] = {godzina: [] for godzina in WARTY_SPECYFIKACJA.keys()}
-
-    plan_dnia = st.session_state.historia_wart[wybrany_dzien]
-    lokalizacje_dnia = st.session_state.lokalizacje_wart[wybrany_dzien]
-
     with tab_kreator:
+        wybrany_dzien = st.selectbox("Wybierz datę:", DNI_OBOZU, format_func=lambda x: f"Noc {x} / {(datetime.strptime(x+'.2026', '%d.%m.%Y') + timedelta(days=1)).strftime('%d.%02m')}")
+
         idx_dzis = DNI_OBOZU.index(wybrany_dzien)
         wczorajszy_dzien = DNI_OBOZU[idx_dzis - 1] if idx_dzis > 0 else None
+
+        if wybrany_dzien not in st.session_state.historia_wart: st.session_state.historia_wart[wybrany_dzien] = {godzina: [] for godzina in WARTY_SPECYFIKACJA.keys()}
+        if wybrany_dzien not in st.session_state.liczba_straznikow: st.session_state.liczba_straznikow[wybrany_dzien] = {godzina: 2 for godzina in WARTY_SPECYFIKACJA.keys()}
+        if wybrany_dzien not in st.session_state.lokalizacje_wart: st.session_state.lokalizacje_wart[wybrany_dzien] = {godzina: [] for godzina in WARTY_SPECYFIKACJA.keys()}
+
+        plan_dnia = st.session_state.historia_wart[wybrany_dzien]
+        lokalizacje_dnia = st.session_state.lokalizacje_wart[wybrany_dzien]
 
         for godzina, info in WARTY_SPECYFIKACJA.items():
             st.markdown(f"<div class='warta-card'>", unsafe_allow_html=True)
@@ -186,7 +181,7 @@ else:
                             plan_dnia[godzina][slot_idx] = ""
 
                         lokalizacje_dnia[godzina][slot_idx] = st.text_input(
-                            "Miejsce warty:", value=lokalizacje_dnia[godzina][slot_idx], 
+                            "Miejsce warty (opcjonalnie):", value=lokalizacje_dnia[godzina][slot_idx], 
                             key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama Główna"
                         )
 
@@ -207,7 +202,7 @@ else:
                                     st.markdown("<span style='color:#ec4899; font-size:11px; font-weight:bold;'>⚠️ Stał(a) poprzedniej nocy!</span>", unsafe_allow_html=True)
             st.markdown(f"</div>", unsafe_allow_html=True)
 
-        if st.button("ZAPISZ WARTY I WYGENERUJ DRUK ROZKAZU", type="primary", use_container_width=True):
+        if st.button("ZAPISZ I ZAKTUALIZUJ STATYSTYKI W EXCELU", type="primary", use_container_width=True):
             st.session_state.historia_wart[wybrany_dzien] = plan_dnia
             st.session_state.lokalizacje_wart[wybrany_dzien] = lokalizacje_dnia
             
@@ -222,49 +217,8 @@ else:
                             if maska.any():
                                 st.session_state.db_uczestnicy.loc[maska, 'Liczba_Wart'] += 1
                                 st.session_state.db_uczestnicy.loc[maska, 'Ostatnia_Warta'] = d
-            st.success("Zaktualizowano statystyki i utworzono kopię zapasową w chmurze!")
+            st.success("Zaktualizowano dane w systemie!")
             st.rerun()
-
-    with tab_druk:
-        st.markdown("### 🖨️ Podgląd druku rozkazu komendanta")
-        st.caption("Możesz wydrukować tę sekcję bezpośrednio z przeglądarki (Ctrl + P) lub pobrać plik tekstowy.")
-        
-        rozkaz_tekst = f"ROZKAZ COMPENDIUM WART OBOZOWYCH\n"
-        rozkaz_tekst += f"Z dnia: {datetime.now().strftime('%d.%m.%Y')} r.\n"
-        rozkaz_tekst += f"Dotyczy służby wartowniczej w nocy: {wybrany_dzien}\n"
-        rozkaz_tekst += "="*50 + "\n\n"
-        
-        rozkaz_html = f"<strong>ROZKAZ COMPENDIUM WART OBOZOWYCH</strong><br>"
-        rozkaz_html += f"Z dnia: {datetime.now().strftime('%d.%m.%Y')} r.<br>"
-        rozkaz_html += f"Dotyczy służby wartowniczej w nocy: {wybrany_dzien}<br><br><hr><br>"
-
-        for g, osoby in plan_dnia.items():
-            rozkaz_tekst += f"Godzina: {g}\n"
-            rozkaz_html += f"<strong>Godzina: {g}</strong><br><ul>"
-            
-            for i, o in enumerate(osoby):
-                miejsce = lokalizacje_dnia[g][i] if i < len(lokalizacje_dnia[g]) else ""
-                m_str = f" -> Lokalizacja: {miejsce}" if miejsce else " -> Lokalizacja: Teren Obozu"
-                osoba_str = o if o else "[Wakat / Brak obsady]"
-                
-                rozkaz_tekst += f"  - Posterunek {i+1}: {osoba_str} {m_str}\n"
-                rozkaz_html += f"<li>Posterunek {i+1}: {osoba_str} <em>{m_str}</em></li>"
-            
-            rozkaz_tekst += "\n"
-            rozkaz_html += "</ul><br>"
-            
-        rozkaz_tekst += "\nRozkaz podpisał: Komendant Obozu"
-        rozkaz_html += "<br><p style='text-align:right;'>Rozkaz podpisał: Komendant Obozu</p>"
-
-        st.markdown(f"<div class='print-preview'>{rozkaz_html}</div>", unsafe_allow_html=True)
-        
-        st.download_button(
-            label="POBIERZ DRUK ROZKAZU (.TXT)",
-            data=rozkaz_tekst,
-            file_name=f"Rozkaz_Wart_Noc_{wybrany_dzien}.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
 
     with tab_statystyki:
         st.markdown("#### 📊 Podsumowanie Obciążeń Służbami")

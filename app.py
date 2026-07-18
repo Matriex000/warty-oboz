@@ -29,8 +29,8 @@ st.markdown("""
         }
         .rozkaz-kartka * { color: black !important; font-family: 'Courier New', Courier, monospace !important; }
         .tabela-rozkaz { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .tabela-rozkaz th { border-bottom: 2px solid black; text-align: left; padding: 8px; }
-        .tabela-rozkaz td { padding: 8px; border-bottom: 1px dashed #666666; }
+        .tabela-rozkaz th { border-bottom: 2px solid black; text-align: left; padding: 8px; font-weight: bold; }
+        .tabela-rozkaz td { padding: 12px 8px; border-bottom: 1px dashed #666666; }
 
         /* Obsługa systemowego drukowania PDF */
         @media print {
@@ -219,7 +219,7 @@ else:
         st.success("Dane zapisane do bazy obozowej!")
         st.rerun()
 
-    # --- GENEROWANIE ROZKAZU (DÓŁ STRONY) ---
+    # --- GENEROWANIE CZYSTEGO WYDRUKU (CAŁKOWITE POMINIĘCIE MIKSU Z MARKDOWNEM) ---
     st.markdown("---")
     st.subheader("🖨️ Generator Rozkazu Komendanta (Wydruk A4)")
     
@@ -230,28 +230,29 @@ else:
         lista_dla_godziny = []
         for j, o in enumerate(osoby):
             miejsce = dzisiejsze_miejsca[g][j] if j < len(dzisiejsze_miejsca[g]) else ""
-            miejsce_str = f" - {miejsce}" if miejsce else ""
+            miejsce_str = f" ({miejsce})" if miejsce else ""
             wartownik_str = o if o else "........................................."
             lista_dla_godziny.append(f"{wartownik_str}{miejsce_str}")
         
         wiersze_tabeli_html += f"""
         <tr>
-            <td><b>{g}</b></td>
-            <td>{', '.join(lista_dla_godziny)}</td>
+            <td style="padding: 12px 8px; border-bottom: 1px dashed #666666;"><b>{g}</b></td>
+            <td style="padding: 12px 8px; border-bottom: 1px dashed #666666;">{', '.join(lista_dla_godziny)}</td>
         </tr>
         """
 
-    szablon_rozkazu = f"""
+    # Pełna implementacja w st.html uniemożliwiająca Streamlitowi parsowanie tego jako kod tekstowy
+    st.html(f"""
     <div class="rozkaz-kartka">
         <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 20px;">
             <h1 style="margin: 0; font-size: 24px; text-transform: uppercase;">ROZKAZ NA WARTĘ NOCNĄ</h1>
             <h3 style="margin: 5px 0 0 0; font-weight: normal;">Noc: {wybrany_dzien} / {nastepny_dzien} 2026 r.</h3>
         </div>
-        <table class="tabela-rozkaz">
+        <table class="tabela-rozkaz" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
             <thead>
                 <tr>
-                    <th style="width: 30%;">GODZINY</th>
-                    <th style="width: 70%;">DRUHNA / DRUH (POSTERUNEK)</th>
+                    <th style="width: 30%; border-bottom: 2px solid black; text-align: left; padding: 8px;">GODZINY</th>
+                    <th style="width: 70%; border-bottom: 2px solid black; text-align: left; padding: 8px;">DRUHNA / DRUH (POSTERUNEK)</th>
                 </tr>
             </thead>
             <tbody>
@@ -265,9 +266,7 @@ else:
             <div style="text-align: right; font-weight: bold; padding-right: 20px;">Komendant Obozu</div>
         </div>
     </div>
-    """
-
-    st.markdown(szablon_rozkazu, unsafe_allow_html=True)
+    """)
     
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🖨️ WYDRUKUJ ROZKAZ (ZAPISZ JAKO PDF)", use_container_width=True):

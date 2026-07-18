@@ -4,15 +4,16 @@ from datetime import datetime, timedelta
 import io
 
 # --- CONFIG INTERFEJSU ---
-st.set_page_config(page_title="System Wart Obozowych Pro", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="System Wart Obozowych Pro", page_icon="⛺", layout="wide", initial_sidebar_state="expanded")
 
-# Przywrócenie pierwotnych stylów CSS (w tym pięknej ramki .print-preview) + poprawka dla czystego druku PDF
+# Zintegrowany, nowoczesny wygląd aplikacji z bezpiecznym dla wydruków PDF blokiem podglądu (.print-preview)
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap');
         * { font-family: 'Space Grotesk', sans-serif; }
         .stApp { background: radial-gradient(circle at 50% 50%, #0f172a, #020617); color: #f8fafc; }
         [data-testid="stSidebar"] { background-color: #0b0f19 !important; border-right: 2px solid #1e293b; }
+        
         .main-title {
             font-family: 'Orbitron', sans-serif;
             background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6);
@@ -23,10 +24,12 @@ st.markdown("""
             animation: glow 8s linear infinite; margin-bottom: 5px;
         }
         @keyframes glow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        
         .warta-card {
             background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(8px);
             border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 15px;
         }
+        
         .badge-z { color: #facc15 !important; font-weight: bold; }
         .badge-h { color: #22c55e !important; font-weight: bold; }
         .badge-hs { color: #3b82f6 !important; font-weight: bold; }
@@ -34,14 +37,23 @@ st.markdown("""
         .badge-i { color: #ffffff !important; font-weight: bold; }
         .metric-card { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 10px; padding: 15px; text-align: center; }
         
-        /* DOKŁADNIE PIERWOTNY, PIĘKNY WYGLĄD PODGLĄDU ROZKAZU */
+        /* KLASYCZNY WYGLĄD MASZYNOPISU Z PODWÓJNĄ RAMKĄ POD DRUK A4 */
         .print-preview {
-            background: white; color: black; padding: 30px; border-radius: 8px;
-            font-family: 'Courier New', Courier, monospace; border: 2px dashed #334155;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin-top: 15px;
+            font-family: 'Courier New', Courier, monospace; 
+            border: 4px double #000000; 
+            padding: 40px; 
+            background-color: #ffffff !important; 
+            color: #000000 !important; 
+            max-width: 650px; 
+            margin: 20px auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
+        .print-preview table { width: 100%; border-collapse: collapse; font-size: 18px; color: #000000 !important; }
+        .print-preview th { text-align: left; padding: 10px; border-bottom: 2px solid #000000; color: #000000 !important; }
+        .print-preview td { padding: 15px 10px; color: #000000 !important; }
+        .print-preview tr { border-bottom: 1px dashed #666666; }
 
-        /* Reguły drukowania, które zapewniają idealny PDF bez czarnych/ciemnych bloków wokół rozkazu */
+        /* Reguły wymuszające idealny czysty wydruk karty A4 bez ciemnego tła Streamlit */
         @media print {
             html, body, .stApp, [data-testid="stReportBlock"], div { 
                 background: white !important; 
@@ -51,7 +63,7 @@ st.markdown("""
                 padding: 0 !important;
                 margin: 0 !important;
             }
-            [data-testid="stSidebar"], .stTabs, button, .main-title, header, hr, .stMarkdown { 
+            [data-testid="stSidebar"], .stTabs, button, .main-title, header, hr, .stMarkdown, .stInfo, .stCaption { 
                 display: none !important; 
             }
             body * { visibility: hidden; }
@@ -60,18 +72,20 @@ st.markdown("""
             }
             .print-preview {
                 position: absolute; 
-                left: 0; 
-                top: 0; 
+                left: 50%;
+                top: 0;
+                transform: translateX(-50%);
                 width: 100%;
-                border: none !important; /* Usunięcie przerywanej linii na sam wydruk dla profesjonalnego efektu */
+                max-width: 100%;
+                border: 4px double #000000 !important;
                 box-shadow: none !important;
-                padding: 10px !important;
+                padding: 20px !important;
             }
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- INICJALIZACJA STANU ---
+# --- INICJALIZACJA STANU APLIKACJI ---
 if 'db_uczestnicy' not in st.session_state: st.session_state.db_uczestnicy = None
 if 'historia_wart' not in st.session_state: st.session_state.historia_wart = {}
 if 'liczba_straznikow' not in st.session_state: st.session_state.liczba_straznikow = {}
@@ -92,10 +106,10 @@ WARTY_SPECYFIKACJA = {
 START_DATA = datetime(2026, 7, 19)
 DNI_OBOZU = [(START_DATA + timedelta(days=i)).strftime("%d.%02m") for i in range(15)]
 
-# --- PANEL BOCZNY ---
+# --- PANEL BOCZNY: AUTODETEKCJA I IMPORT ---
 with st.sidebar:
-    st.markdown("### PANEL IMPORTU BAZY")
-    uploaded_file = st.file_uploader("Wgraj plik Excel", type=["xlsx"], label_visibility="collapsed")
+    st.markdown("### 📥 PANEL IMPORTU BAZY")
+    uploaded_file = st.file_uploader("Wgraj plik Excel (.xlsx)", type=["xlsx"], label_visibility="collapsed")
     
     if uploaded_file and st.session_state.db_uczestnicy is None:
         try:
@@ -132,22 +146,22 @@ with st.sidebar:
 
     if st.session_state.db_uczestnicy is not None:
         st.markdown("---")
-        st.markdown("### AKTYWNA LISTA OBOZOWA")
+        st.markdown("### 📊 AKTYWNA LISTA OBOZOWA")
         st.dataframe(
             st.session_state.db_uczestnicy.sort_values(by=["pion_waga", "Liczba_Wart"])[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']], 
             hide_index=True, use_container_width=True
         )
 
 # --- PANEL GŁÓWNY ---
-st.markdown("<div class='main-title'>SYSTEM WART OBOZOWYCH</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title'>⛺ SYSTEM WART OBOZOWYCH</div>", unsafe_allow_html=True)
 
 if st.session_state.db_uczestnicy is None:
-    st.info("Wgraj bazę z pliku Excel w panelu bocznym, aby uruchomić aplikację.")
+    st.info("👋 Wgraj bazę z pliku Excel w panelu bocznym, aby uruchomić kreator i generowanie rozkazów A4.")
 else:
-    # Powrót do pierwotnego układu z 3 zakładkami (Kreator, Druk, Statystyki)
-    tab_kreator, tab_druk, tab_statystyki = st.tabs(["📝 Kreator Rozkazu", "🖨️ Druk Rozkazu", "📊 Statystyki i Eksport"])
+    # Układ 3 funkcjonalnych zakładek
+    tab_kreator, tab_druk, tab_statystyki = st.tabs(["📝 Kreator Rozkazu", "🖨️ Podgląd i Druk A4", "📊 Statystyki Globalne"])
     
-    wybrany_dzien = st.selectbox("Wybierz datę:", DNI_OBOZU, format_func=lambda x: f"Noc {x} / {(datetime.strptime(x+'.2026', '%d.%m.%Y') + timedelta(days=1)).strftime('%d.%02m')}")
+    wybrany_dzien = st.selectbox("📅 Wybierz datę planowanej służby:", DNI_OBOZU, format_func=lambda x: f"Noc {x} / {(datetime.strptime(x+'.2026', '%d.%m.%Y') + timedelta(days=1)).strftime('%d.%02m')}")
 
     if wybrany_dzien not in st.session_state.historia_wart: st.session_state.historia_wart[wybrany_dzien] = {godzina: [] for godzina in WARTY_SPECYFIKACJA.keys()}
     if wybrany_dzien not in st.session_state.liczba_straznikow: st.session_state.liczba_straznikow[wybrany_dzien] = {godzina: 2 for godzina in WARTY_SPECYFIKACJA.keys()}
@@ -162,20 +176,21 @@ else:
 
         for godzina, info in WARTY_SPECYFIKACJA.items():
             st.markdown(f"<div class='warta-card'>", unsafe_allow_html=True)
-            col_meta, col_inputs, col_actions = st.columns([2, 4, 1])
+            col_meta, col_inputs, col_actions = st.columns([2.5, 4.5, 1])
             
             with col_meta:
-                st.markdown(f"<div style='font-size:20px; font-weight:700; color:#6366f1; font-family:Orbitron;'>{godzina}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:19px; font-weight:700; color:#3b82f6; font-family:Orbitron;'>{godzina}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div style='color:#94a3b8; font-size:12px; margin-bottom:8px;'>{info['opis']}</div>", unsafe_allow_html=True)
                 filtr_pionu = st.multiselect("Filtruj piony:", ["Z", "H", "HS", "W", "I"], default=info['preferencja'], key=f"filter_{godzina}_{wybrany_dzien}")
                 
             with col_actions:
+                st.markdown("<div style='text-align:center; font-size:11px; color:#94a3b8;'>Obsada</div>", unsafe_allow_html=True)
                 c1, c2 = st.columns(2)
                 with c1:
-                    if st.button("+", key=f"add_{godzina}_{wybrany_dzien}"): st.session_state.liczba_straznikow[wybrany_dzien][godzina] += 1; st.rerun()
+                    if st.button("➕", key=f"add_{godzina}_{wybrany_dzien}"): st.session_state.liczba_straznikow[wybrany_dzien][godzina] += 1; st.rerun()
                 with c2:
-                    if st.button("-", key=f"sub_{godzina}_{wybrany_dzien}"):
-                        if st.session_state.liczba_straznikow[wybrany_dzien][godzina] > 0: st.session_state.liczba_straznikow[wybrany_dzien][godzina] -= 1; st.rerun()
+                    if st.button("➖", key=f"sub_{godzina}_{wybrany_dzien}"):
+                        if st.session_state.liczba_straznikow[wybrany_dzien][godzina] > 1: st.session_state.liczba_straznikow[wybrany_dzien][godzina] -= 1; st.rerun()
 
             current_slots = st.session_state.liczba_straznikow[wybrany_dzien][godzina]
             while len(plan_dnia[godzina]) < current_slots: plan_dnia[godzina].append("")
@@ -207,38 +222,37 @@ else:
                             if pasujace_opcje: idx_default = pasujace_opcje[0]
                             else: idx_default = 1; is_manual = True
                                 
-                        wybor = st.selectbox(f"Osoba {slot_idx+1}", opcje, index=idx_default, key=f"sl_{godzina}_{slot_idx}_{wybrany_dzien}", label_visibility="collapsed")
+                        wybor = st.selectbox(f"Wartownik {slot_idx+1}", opcje, index=idx_default, key=f"sl_{godzina}_{slot_idx}_{wybrany_dzien}")
                         
                         if wybor == "Wpis ręczny (Wyjątek)" or is_manual:
-                            plan_dnia[godzina][slot_idx] = st.text_input(f"Ręcznie:", value=aktualny_wybor, key=f"mn_{godzina}_{slot_idx}_{wybrany_dzien}", label_visibility="collapsed")
+                            plan_dnia[godzina][slot_idx] = st.text_input(f"Kto (ręcznie):", value=aktualny_wybor, key=f"mn_{godzina}_{slot_idx}_{wybrany_dzien}")
                         elif wybor != "-- Wybierz --":
                             plan_dnia[godzina][slot_idx] = wybor.split(" (Warty")[0][2:].split(" [")[0]
                         else:
                             plan_dnia[godzina][slot_idx] = ""
 
                         lokalizacje_dnia[godzina][slot_idx] = st.text_input(
-                            "Miejsce warty:", value=lokalizacje_dnia[godzina][slot_idx], 
-                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama Główna"
+                            "Posterunek:", value=lokalizacje_dnia[godzina][slot_idx], 
+                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama"
                         )
 
+                        # Walidacje i podpowiedzi w czasie rzeczywistym
                         if plan_dnia[godzina][slot_idx]:
                             st_name = plan_dnia[godzina][slot_idx]
-                            m_druzyna = db[db['pelne_nazwisko'] == st_name]['Drużyna'].values
-                            if len(m_druzyna) > 0 and m_druzyna[0]:
-                                st.markdown(f"<div style='font-size:11px; color:#a855f7;'>Drużyna: {m_druzyna[0]}</div>", unsafe_allow_html=True)
                             
-                            if " (Z)" in st_name: st.markdown("<span class='badge-z' style='font-size:11px;'>🟡 Pion: Zuch</span>", unsafe_allow_html=True)
-                            elif " (H)" in st_name: st.markdown("<span class='badge-h' style='font-size:11px;'>🟢 Pion: Harcerz</span>", unsafe_allow_html=True)
-                            elif " (HS)" in st_name: st.markdown("<span class='badge-hs' style='font-size:11px;'>🔵 Pion: Harcerz St.</span>", unsafe_allow_html=True)
-                            elif " (W)" in st_name: st.markdown("<span class='badge-w' style='font-size:11px;'>🔴 Pion: Wędrownik</span>", unsafe_allow_html=True)
-                            elif " (I)" in st_name: st.markdown("<span class='badge-i' style='font-size:11px;'>⚪ Pion: Instruktor</span>", unsafe_allow_html=True)
+                            if " (Z)" in st_name and "Z" not in info['preferencja']:
+                                st.markdown("<span style='color:#ef4444; font-size:11px; font-weight:bold;'>🛑 Zakaz wart nocnych dla Zuchów!</span>", unsafe_allow_html=True)
+                            elif " (Z)" not in st_name and "Z" in info['preferencja']:
+                                st.markdown("<span style='color:#facc15; font-size:11px; font-weight:bold;'>⚠️ Sugerowane Zuchy!</span>", unsafe_allow_html=True)
+                            else:
+                                st.markdown("<span style='color:#22c55e; font-size:11px;'>✅ Pion prawidłowy</span>", unsafe_allow_html=True)
 
                             if wczorajszy_dzien and wczorajszy_dzien in st.session_state.historia_wart:
                                 if st_name in [item for sublist in st.session_state.historia_wart[wczorajszy_dzien].values() for item in sublist]:
-                                    st.markdown("<span style='color:#ec4899; font-size:11px; font-weight:bold;'>⚠️ Stał(a) poprzedniej nocy!</span>", unsafe_allow_html=True)
+                                    st.markdown("<span style='color:#ec4899; font-size:11px; font-weight:bold;'>⚠️ Służba noc po nocy!</span>", unsafe_allow_html=True)
             st.markdown(f"</div>", unsafe_allow_html=True)
 
-        if st.button("ZAPISZ WARTY I WYGENERUJ DRUK ROZKAZU", type="primary", use_container_width=True):
+        if st.button("💾 ZAPISZ GRAFIK WART I PRZELICZ LICZNIKI", type="primary", use_container_width=True):
             st.session_state.historia_wart[wybrany_dzien] = plan_dnia
             st.session_state.lokalizacje_wart[wybrany_dzien] = lokalizacje_dnia
             
@@ -253,71 +267,82 @@ else:
                             if maska.any():
                                 st.session_state.db_uczestnicy.loc[maska, 'Liczba_Wart'] += 1
                                 st.session_state.db_uczestnicy.loc[maska, 'Ostatnia_Warta'] = d
-            st.success("Zaktualizowano statystyki i utworzono kopię zapasową w chmurze!")
+            st.success("Zapisano! Liczniki w bazie zostały zaktualizowane pomyślnie.")
             st.rerun()
 
-    # POWRÓT DO PIERWOTNEJ, PIĘKNEJ ZAKŁADKI DRUKU
+    # ZAKŁADKA DRUKU: ESTETYCZNY PODGLĄD Z BLOKIEM A4
     with tab_druk:
-        st.markdown("### 🖨️ Podgląd druku rozkazu komendanta")
-        st.caption("Uruchom drukowanie z przeglądarki (Ctrl + P lub dedykowany przycisk na dole), wybierając jako docelowy format 'Zapisz jako PDF'.")
+        st.markdown("### 🖨️ Podgląd druku rozkazu (Standard A4)")
+        st.caption("Uruchom skrót Ctrl + P (lub Command + P) na klawiaturze, wybierając opcję 'Zapisz jako PDF'. Automatyczne style CSS ukryją zbędne elementy interfejsu.")
         
-        rozkaz_tekst = f"ROZKAZ COMPENDIUM WART OBOZOWYCH\n"
-        rozkaz_tekst += f"Z dnia: {datetime.now().strftime('%d.%m.%Y')} r.\n"
-        rozkaz_tekst += f"Dotyczy służby wartowniczej w nocy: {wybrany_dzien}\n"
-        rozkaz_tekst += "="*50 + "\n\n"
+        jutro_data = (datetime.strptime(wybrany_dzien+".2026", "%d.%m.%Y") + timedelta(days=1)).strftime("%d.%02m")
         
-        rozkaz_html = f"<strong>ROZKAZ COMPENDIUM WART OBOZOWYCH</strong><br>"
-        rozkaz_html += f"Z dnia: {datetime.now().strftime('%d.%m.%Y')} r.<br>"
-        rozkaz_html += f"Dotyczy służby wartowniczej w nocy: {wybrany_dzien}<br><br><hr><br>"
+        # Generowanie profesjonalnego układu rozkazu wewnątrz struktury tabeli z ramką
+        rozkaz_html = f"""
+        <div class="print-preview">
+            <div style="text-align: center; border-bottom: 2px solid #000000; padding-bottom: 10px; margin-bottom: 25px;">
+                <h1 style="margin: 0; font-size: 26px; text-transform: uppercase; letter-spacing: 2px;">Rozkaz na Wartę Nocną</h1>
+                <h2 style="margin: 5px 0 0 0; font-size: 19px; font-weight: normal;">Noc: {wybrany_dzien} / {jutro_data} 2026 r.</h2>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 35%;">GODZINY</th>
+                        <th style="width: 65%;">DRUHNA / DRUH (POSTERUNEK)</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
 
         for g, osoby in plan_dnia.items():
-            rozkaz_tekst += f"Godzina: {g}\n"
-            rozkaz_html += f"<strong>Godzina: {g}</strong><br><ul>"
+            obsada_elementy = []
+            for idx, o in enumerate(osoby):
+                miejsce = lokalizacje_dnia[g][idx] if idx < len(lokalizacje_dnia[g]) else ""
+                miejsce_str = f" [M: {miejsce}]" if miejsce else ""
+                straznik = o if o else "........................................."
+                obsada_elementy.append(f"{straznik}{miejsce_str}")
             
-            for i, o in enumerate(osoby):
-                miejsce = lokalizacje_dnia[g][i] if i < len(lokalizacje_dnia[g]) else ""
-                m_str = f" -> Lokalizacja: {miejsce}" if miejsce else " -> Lokalizacja: Teren Obozu"
-                osoba_str = o if o else "[Wakat / Brak obsady]"
-                
-                rozkaz_tekst += f"  - Posterunek {i+1}: {osoba_str} {m_str}\n"
-                rozkaz_html += f"<li>Posterunek {i+1}: {osoba_str} <em>{m_str}</em></li>"
+            obsada_finalna = "<br>".join(obsada_elementy)
+            rozkaz_html += f"""
+                <tr>
+                    <td style="font-weight: bold; vertical-align: top;">{g}</td>
+                    <td>{obsada_finalna}</td>
+                </tr>
+            """
             
-            rozkaz_tekst += "\n"
-            rozkaz_html += "</ul><br>"
-            
-        rozkaz_tekst += "\nRozkaz podpisał: Komendant Obozu"
-        rozkaz_html += "<br><p style='text-align:right; font-weight:bold;'>Rozkaz podpisał: Komendant Obozu</p>"
+        rozkaz_html += f"""
+                </tbody>
+            </table>
+            <div style="text-align: center; margin-top: 35px; font-size: 14px; font-style: italic;">
+                Czuwaj!<br>
+                Odprawa służb przy apelu wieczornym.<br><br>
+                <div style="text-align: right; font-weight: bold; font-style: normal; margin-top: 15px;">Komendant Obozu</div>
+            </div>
+        </div>
+        """
 
-        # Wyświetlenie dokładnie tego samego pięknego bloku .print-preview
-        st.markdown(f"<div class='print-preview'>{rozkaz_html}</div>", unsafe_allow_html=True)
+        # Prezentacja graficznego podglądu na stronie
+        st.markdown(rozkaz_html, unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Wygodny przycisk wyzwalający bezbłędne drukowanie systemowe wprost z okna
-        if st.button("🖨️ URUCHOM DRUKOWANIE SYSTEMOWE (ZAPISZ JAKO PDF)", type="secondary", use_container_width=True):
+        if st.button("🖨️ URUCHOM SYSTEMOWE DRUKOWANIE OKNA", type="secondary", use_container_width=True):
             st.html("<script>window.print();</script>")
-            
-        st.download_button(
-            label="POBIERZ DRUK ROZKAZU (.TXT)",
-            data=rozkaz_tekst,
-            file_name=f"Rozkaz_Wart_Noc_{wybrany_dzien}.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
 
+    # ZAKŁADKA STATYSTYK I EKSPORTU BAZY
     with tab_statystyki:
         st.markdown("#### 📊 Podsumowanie Obciążeń Służbami")
         db_stat = st.session_state.db_uczestnicy
         
         c_tot, c_avg, c_un = st.columns(3)
-        c_tot.markdown(f"<div class='metric-card'><h5>Suma wart</h5><h2>{db_stat['Liczba_Wart'].sum()}</h2></div>", unsafe_allow_html=True)
-        c_avg.markdown(f"<div class='metric-card'><h5>Średnia na osobę</h5><h2>{db_stat['Liczba_Wart'].mean():.1f}</h2></div>", unsafe_allow_html=True)
-        c_un.markdown(f"<div class='metric-card'><h5>Jeszcze nie stali</h5><h2>{len(db_stat[db_stat['Liczba_Wart'] == 0])}</h2></div>", unsafe_allow_html=True)
+        c_tot.markdown(f"<div class='metric-card'><h5>Suma przydzielonych wart</h5><h2>{db_stat['Liczba_Wart'].sum()}</h2></div>", unsafe_allow_html=True)
+        c_avg.markdown(f"<div class='metric-card'><h5>Średnia wart na osobę</h5><h2>{db_stat['Liczba_Wart'].mean():.1f}</h2></div>", unsafe_allow_html=True)
+        c_un.markdown(f"<div class='metric-card'><h5>Uczestnicy bez służby</h5><h2>{len(db_stat[db_stat['Liczba_Wart'] == 0])}</h2></div>", unsafe_allow_html=True)
         
         st.markdown("---")
-        st.markdown("#### 📥 GENERATOR RAPORTU KOŃCOWEGO")
+        st.markdown("#### 📥 GENERATOR PEŁNEGO RAPORTU KOŃCOWEGO")
         
         export_df = db_stat[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart', 'Ostatnia_Warta']].copy()
-        export_df['Czy_Był_Na_Warcie'] = export_df['Liczba_Wart'].apply(lambda x: "TAK" if x > 0 else "NIE")
         
         szczegoly_list = []
         for idx, row in db_stat.iterrows():
@@ -332,18 +357,17 @@ else:
                         historia_osoby.append(f"Noc {d} ({g}{miejsce_str})")
             szczegoly_list.append("; ".join(historia_osoby) if historia_osoby else "-")
             
-        export_df['Dokładna_Historia_Służb'] = szczegoly_list
+        export_df['Szczegółowa_Historia_Wart'] = szczegoly_list
 
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            export_df.to_excel(writer, index=False, sheet_name='Raport Wart')
+            export_df.to_excel(writer, index=False, sheet_name='Raport Wart Obozu')
         
         st.download_button(
-            label="POBIERZ ARKUSZ KOŃCOWY EXCEL (.XLSX)",
+            label="Pobierz Kompletny Raport Excel (.xlsx)",
             data=buffer.getvalue(),
             file_name=f"Raport_Wart_Obóz_2026.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-        
         st.dataframe(export_df, hide_index=True, use_container_width=True)

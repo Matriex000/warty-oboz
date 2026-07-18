@@ -6,7 +6,7 @@ import io
 # --- CONFIG INTERFEJSU ---
 st.set_page_config(page_title="System Wart Obozowych Pro", layout="wide", initial_sidebar_state="expanded")
 
-# Styl aplikacji pozostaje nowoczesny i ciemny, natomiast styl @media print wraca do pierwszego szablonu
+# Styl aplikacji pozostaje nowoczesny i ciemny, natomiast styl @media print wymusza w 100% czysty, pierwotny wydruk
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap');
@@ -34,16 +34,55 @@ st.markdown("""
         .badge-i { color: #ffffff !important; font-weight: bold; }
         .metric-card { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 10px; padding: 15px; text-align: center; }
         
-        /* --- PIERWOTNY STYL DLA WYDRUKU PDF --- */
+        /* --- CAŁKOWITE PRZYWRÓCENIE PIERWOTNEGO WYGLĄDU DLA WYDRUKU PDF --- */
         @media print {
-            body * { visibility: hidden; background: white !important; color: black !important; }
-            .print-area, .print-area * { visibility: visible; }
-            .print-area {
-                position: absolute; left: 0; top: 0; width: 100%;
-                background: white !important; color: black !important;
-                padding: 20px; font-family: 'Courier New', monospace !important;
+            /* Ukrycie wszystkich elementów systemowych, kontenerów i ciemnych teł Streamlita */
+            html, body, .stApp, [data-testid="stReportBlock"], div { 
+                background: white !important; 
+                color: black !important; 
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }
-            [data-testid="stSidebar"], .stTabs, button, .main-title, header { display: none !important; }
+            
+            /* Ukrycie elementów interfejsu aplikacji */
+            [data-testid="stSidebar"], .stTabs, button, .main-title, header, hr, .stMarkdown { 
+                display: none !important; 
+            }
+            
+            /* Wymuszenie widoczności wyłącznie czystego obszaru druku */
+            body * { visibility: hidden; }
+            .print-area, .print-area * { visibility: visible; }
+            
+            .print-area {
+                position: absolute; 
+                left: 0; 
+                top: 0; 
+                width: 100%;
+                background: white !important; 
+                color: black !important;
+                padding: 10px !important; 
+                font-family: 'Courier New', monospace !important;
+            }
+            
+            table { 
+                width: 100% !important; 
+                border-collapse: collapse !important; 
+                background: white !important;
+                color: black !important;
+            }
+            
+            tr { 
+                border-bottom: 1px solid black !important; 
+                background: white !important;
+            }
+            
+            td { 
+                color: black !important; 
+                background: white !important;
+                padding: 12px !important;
+            }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -235,7 +274,7 @@ else:
         st.markdown("---")
         st.markdown("### 🖨️ Podgląd Rozkazu przed Wydrukiem")
 
-        # Czysta, klasyczna budowa pierwszej tabeli bez słów "Obsada posterunków" ani "Post. X"
+        # Czysta budowa tabeli na oryginalny wzór
         straznicy_tabela = ""
         for g, osoby in plan_dnia.items():
             straznicy_str = []
@@ -246,20 +285,20 @@ else:
                 straznicy_str.append(f"{osoba_str}{m_str}")
             
             straznicy_html = "<br>".join(straznicy_str)
-            straznicy_tabela += f"<tr style='border-bottom: 1px solid black;'><td style='padding: 12px; font-weight: bold; font-size: 16px; vertical-align: top; width: 30%; color: black;'>{g}</td><td style='padding: 12px; font-size: 16px; color: black;'>{straznicy_html}</td></tr>"
+            straznicy_tabela += f"<tr style='border-bottom: 1px solid black;'><td style='padding: 12px; font-weight: bold; font-size: 16px; vertical-align: top; width: 30%; color: black !important; background: white !important;'>{g}</td><td style='padding: 12px; font-size: 16px; color: black !important; background: white !important;'>{straznicy_html}</td></tr>"
 
         kod_html_druku = f"""
-        <div class="print-area" style="background-color: white !important; color: black !important; padding: 30px; border-radius: 0px; border: 2px solid black; font-family: 'Courier New', monospace;">
+        <div class="print-area" style="background-color: white !important; color: black !important; padding: 30px; border-radius: 0px; border: none; font-family: 'Courier New', monospace;">
             <h2 style="text-align: center; margin-bottom: 5px; font-weight: bold; color: black !important; letter-spacing: 2px;">ROZKAZ WART OBOZOWYCH</h2>
             <p style="text-align: center; margin-top: 0; font-size: 14px; color: black !important;">Noc: {wybrany_dzien} | Wygenerowano: {datetime.now().strftime('%d.%m.%Y')}</p>
             <hr style="border: 1px solid black; margin-bottom: 20px;">
-            <table style="width: 100%; border-collapse: collapse; color: black !important;">
+            <table style="width: 100%; border-collapse: collapse; color: black !important; background: white !important;">
                 <tbody>
                     {straznicy_tabela}
                 </tbody>
             </table>
             <br><br><br>
-            <p style="text-align: right; font-weight: bold; margin-right: 20px; color: black !important;">Podpisał: Komendant Obozu</p>
+            <p style="text-align: right; font-weight: bold; margin-right: 20px; color: black !important; background: white !important;">Podpisał: Komendant Obozu</p>
         </div>
         """
         

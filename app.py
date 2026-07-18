@@ -220,6 +220,59 @@ else:
             st.success("Zaktualizowano dane w systemie!")
             st.rerun()
 
+        # --- DEDYKOWANA SEKCJA GENEROWANIA DRUKU ROZKAZU ---
+        st.markdown("### 🖨️ Generator Druku na Tablicę")
+        
+        kod_html_druku = f"""
+        <div style="background-color: white; color: black; padding: 30px; border-radius: 8px; border: 3px solid black; font-family: 'Courier New', monospace;">
+            <h2 style="text-align: center; margin-bottom: 5px; font-weight: bold;">ROZKAZ WART OBOZOWYCH</h2>
+            <p style="text-align: center; margin-top: 0; font-size: 14px;">Data obozu: Noc {wybrany_dzien} | Wygenerowano: {datetime.now().strftime('%d.%m.%Y')}</p>
+            <hr style="border: 1px solid black; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 2px solid black; text-align: left;">
+                        <th style="padding: 8px; font-weight: bold;">GODZINA</th>
+                        <th style="padding: 8px; font-weight: bold;">POSTERONKI / PEŁNE NAZWISKO</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        for g, osoby in plan_dnia.items():
+            straznicy_str = []
+            for i, o in enumerate(osoby):
+                miejsce = lokalizacje_dnia[g][i] if i < len(lokalizacje_dnia[g]) else ""
+                m_str = f" ({miejsce})" if miejsce else ""
+                osoba_str = o if o else "[Brak obsady]"
+                straznicy_str.append(f"Post. {i+1}: {osoba_str}{m_str}")
+            
+            straznicy_html = "<br>".join(straznicy_str)
+            kod_html_druku += f"""
+                <tr style="border-bottom: 1px solid #ccc;">
+                    <td style="padding: 12px 8px; font-weight: bold; vertical-align: top; font-size: 16px; width: 30%;">{g}</td>
+                    <td style="padding: 12px 8px; font-size: 15px;">{straznicy_html}</td>
+                </tr>
+            """
+            
+        kod_html_druku += """
+                </tbody>
+            </table>
+            <br><br>
+            <p style="text-align: right; font-weight: bold; margin-right: 20px;">Podpisał: Komendant Obozu</p>
+        </div>
+        """
+        
+        st.markdown(kod_html_druku, unsafe_allow_html=True)
+        
+        # Przycisk do pobrania czystego HTML, który po otwarciu w przeglądarce drukuje się od razu jako czysty PDF
+        st.download_button(
+            label="📄 WYŚLIJ ROZKAZ DO DRUKARKI / POBIERZ DOKUMENT",
+            data=f"<html><body onload='window.print()'>{kod_html_druku}</body></html>",
+            file_name=f"Rozkaz_Wart_Noc_{wybrany_dzien}.html",
+            mime="text/html",
+            use_container_width=True
+        )
+
     with tab_statystyki:
         st.markdown("#### 📊 Podsumowanie Obciążeń Służbami")
         db_stat = st.session_state.db_uczestnicy

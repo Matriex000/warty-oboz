@@ -6,7 +6,7 @@ import io
 # --- CONFIG INTERFEJSU ---
 st.set_page_config(page_title="System Wart Obozowych Pro", layout="wide", initial_sidebar_state="expanded")
 
-# Dynamiczne style CSS
+# Dynamiczne style CSS (w tym reguły dla druku)
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap');
@@ -33,6 +33,18 @@ st.markdown("""
         .badge-w { color: #ef4444 !important; font-weight: bold; }
         .badge-i { color: #ffffff !important; font-weight: bold; }
         .metric-card { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 10px; padding: 15px; text-align: center; }
+        
+        /* --- STYLE DRUKOWANIA (UKRYWANIE ELEMENTÓW INTERFEJSU) --- */
+        @media print {
+            body * { visibility: hidden; background: white !important; color: black !important; }
+            .print-area, .print-area * { visibility: visible; }
+            .print-area {
+                position: absolute; left: 0; top: 0; width: 100%;
+                background: white !important; color: black !important;
+                padding: 20px; font-family: 'Courier New', monospace !important;
+            }
+            [data-testid="stSidebar"], .stTabs, button, .main-title, header { display: none !important; }
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -181,7 +193,7 @@ else:
                             plan_dnia[godzina][slot_idx] = ""
 
                         lokalizacje_dnia[godzina][slot_idx] = st.text_input(
-                            "Miejsce warty (opcjonalnie):", value=lokalizacje_dnia[godzina][slot_idx], 
+                            "Miejsce warty:", value=lokalizacje_dnia[godzina][slot_idx], 
                             key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama Główna"
                         )
 
@@ -220,24 +232,11 @@ else:
             st.success("Zaktualizowano dane w systemie!")
             st.rerun()
 
-        # --- DEDYKOWANA SEKCJA GENEROWANIA DRUKU ROZKAZU ---
-        st.markdown("### 🖨️ Generator Druku na Tablicę")
-        
-        kod_html_druku = f"""
-        <div style="background-color: white; color: black; padding: 30px; border-radius: 8px; border: 3px solid black; font-family: 'Courier New', monospace;">
-            <h2 style="text-align: center; margin-bottom: 5px; font-weight: bold;">ROZKAZ WART OBOZOWYCH</h2>
-            <p style="text-align: center; margin-top: 0; font-size: 14px;">Data obozu: Noc {wybrany_dzien} | Wygenerowano: {datetime.now().strftime('%d.%m.%Y')}</p>
-            <hr style="border: 1px solid black; margin-bottom: 20px;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="border-bottom: 2px solid black; text-align: left;">
-                        <th style="padding: 8px; font-weight: bold;">GODZINA</th>
-                        <th style="padding: 8px; font-weight: bold;">POSTERONKI / PEŁNE NAZWISKO</th>
-                    </tr>
-                </thead>
-                <tbody>
-        """
-        
+        st.markdown("---")
+        st.markdown("### 🖨️ Podgląd Rozkazu przed Wydrukiem")
+
+        # Generowanie czystego kodu HTML, który wyświetla się ładnie, a w druku ukrywa resztę strony
+        straznicy_tabela = ""
         for g, osoby in plan_dnia.items():
             straznicy_str = []
             for i, o in enumerate(osoby):
@@ -247,31 +246,39 @@ else:
                 straznicy_str.append(f"Post. {i+1}: {osoba_str}{m_str}")
             
             straznicy_html = "<br>".join(straznicy_str)
-            kod_html_druku += f"""
-                <tr style="border-bottom: 1px solid #ccc;">
-                    <td style="padding: 12px 8px; font-weight: bold; vertical-align: top; font-size: 16px; width: 30%;">{g}</td>
-                    <td style="padding: 12px 8px; font-size: 15px;">{straznicy_html}</td>
+            straznicy_tabela += f"""
+                <tr style="border-bottom: 1px solid black;">
+                    <td style="padding: 12px; font-weight: bold; font-size: 16px; vertical-align: top; width: 30%;">{g}</td>
+                    <td style="padding: 12px; font-size: 15px;">{straznicy_html}</td>
                 </tr>
             """
-            
-        kod_html_druku += """
+
+        kod_html_druku = f"""
+        <div class="print-area" style="background-color: white; color: black; padding: 30px; border-radius: 8px; border: 2px solid black; font-family: 'Courier New', monospace;">
+            <h2 style="text-align: center; margin-bottom: 5px; font-weight: bold; color: black;">ROZKAZ WART OBOZOWYCH</h2>
+            <p style="text-align: center; margin-top: 0; font-size: 14px; color: black;">Noc: {wybrany_dzien} | Wygenerowano: {datetime.now().strftime('%d.%m.%Y')}</p>
+            <hr style="border: 1px solid black; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse; color: black;">
+                <thead>
+                    <tr style="border-bottom: 2px solid black; text-align: left;">
+                        <th style="padding: 12px; font-weight: bold;">GODZINA</th>
+                        <th style="padding: 12px; font-weight: bold;">OBSADA POSTERONKÓW</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {straznicy_tabela}
                 </tbody>
             </table>
-            <br><br>
-            <p style="text-align: right; font-weight: bold; margin-right: 20px;">Podpisał: Komendant Obozu</p>
+            <br><br><br>
+            <p style="text-align: right; font-weight: bold; margin-right: 20px; color: black;">Podpisał: Komendant Obozu</p>
         </div>
         """
-        
         st.markdown(kod_html_druku, unsafe_allow_html=True)
-        
-        # Przycisk do pobrania czystego HTML, który po otwarciu w przeglądarce drukuje się od razu jako czysty PDF
-        st.download_button(
-            label="📄 WYŚLIJ ROZKAZ DO DRUKARKI / POBIERZ DOKUMENT",
-            data=f"<html><body onload='window.print()'>{kod_html_druku}</body></html>",
-            file_name=f"Rozkaz_Wart_Noc_{wybrany_dzien}.html",
-            mime="text/html",
-            use_container_width=True
-        )
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Przycisk uruchamiający systemowe okno drukowania (zapisz do PDF) z poziomu przeglądarki
+        if st.button("🖨️ DRUKUJ ROZKAZ NA TABLICĘ (ZAPISZ JAKO PDF)", type="secondary", use_container_width=True):
+            st.markdown("<script>window.print();</script>", unsafe_allow_html=True)
 
     with tab_statystyki:
         st.markdown("#### 📊 Podsumowanie Obciążeń Służbami")
@@ -295,7 +302,7 @@ else:
             for d, warty in st.session_state.historia_wart.items():
                 for g, osoby in warty.items():
                     if pelne in osoby:
-                        slot_idx = osoby.index(pelne)
+                        slot_idx =裝osoby.index(pelne)
                         miejsce = st.session_state.lokalizacje_wart[d][g][slot_idx] if slot_idx < len(st.session_state.lokalizacje_wart[d][g]) else ""
                         miejsce_str = f" -> {miejsce}" if miejsce else ""
                         historia_osoby.append(f"Noc {d} ({g}{miejsce_str})")

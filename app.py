@@ -99,7 +99,7 @@ with st.sidebar:
         st.markdown("---")
         st.markdown("### AKTYWNA LISTA OBOZOWA")
         st.dataframe(
-            st.session_state.db_uczestnicy.sort_values(by=["pion_waga", "Liczba_Wart"])[['Pion', 'Imię', 'Nazwisrow' if 'Nazwisrow' in df.columns else 'Nazwisko', 'Drużyna', 'Liczba_Wart']], 
+            st.session_state.db_uczestnicy.sort_values(by=["pion_waga", "Liczba_Wart"])[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']], 
             hide_index=True, use_container_width=True
         )
 
@@ -180,7 +180,7 @@ else:
                         else:
                             plan_dnia[godzina][slot_idx] = ""
 
-                        # Zmiana: Domyślnie pole tekstowe jest puste (opcjonalne)
+                        # Domyślnie pole tekstowe jest puste (opcjonalne)
                         lokalizacje_dnia[godzina][slot_idx] = st.text_input(
                             "Miejsce warty (opcjonalnie):", value=lokalizacje_dnia[godzina][slot_idx], 
                             key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama Główna"

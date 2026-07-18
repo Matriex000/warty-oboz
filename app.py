@@ -54,7 +54,7 @@ if 'harmonogram_wart' not in st.session_state: st.session_state.harmonogram_wart
 if 'liczba_wartowników' not in st.session_state: st.session_state.liczba_wartowników = {}
 if 'lokalizacje_wart' not in st.session_state: st.session_state.lokalizacje_wart = {}
 
-# Konfiguracja godzin i preferencji (jak w wersji 1)
+# Konfiguracja godzin i preferencji
 GODZINY_WART = {
     "22:00 - 23:00": ["Z"],
     "23:00 - 00:00": ["Z"],
@@ -75,7 +75,6 @@ with st.sidebar:
     if plik and st.session_state.dane_uczestnikow is None:
         try:
             df = pd.read_excel(plik).fillna("")
-            # Automatyczne mapowanie najczęstszych nazw kolumn
             df.columns = [str(c).strip() for c in df.columns]
             
             mapowanie = {}
@@ -112,7 +111,6 @@ if st.session_state.dane_uczestnikow is None:
 else:
     wybrany_dzien = st.selectbox("📅 Wybierz datę wart:", DNI)
 
-    # Inicjalizacja struktur dla danego dnia
     if wybrany_dzien not in st.session_state.harmonogram_wart:
         st.session_state.harmonogram_wart[wybrany_dzien] = {g: [] for g in GODZINY_WART.keys()}
         st.session_state.liczba_wartowników[wybrany_dzien] = {g: 2 for g in GODZINY_WART.keys()}
@@ -153,7 +151,6 @@ else:
 
         ile_miejsc = st.session_state.liczba_wartowników[wybrany_dzien][godzina]
         
-        # Dopasowanie długości tablic
         while len(dzisiejsze_warty[godzina]) < ile_miejsc: dzisiejsze_warty[godzina].append("")
         while len(dzisiejsze_miejsca[godzina]) < ile_miejsc: dzisiejsze_miejsca[godzina].append("")
         dzisiejsze_warty[godzina] = dzisiejsze_warty[godzina][:ile_miejsc]
@@ -163,7 +160,6 @@ else:
             kolumny_slotow = st.columns(ile_miejsc)
             for i in range(ile_miejsc):
                 with kolumny_slotow[i]:
-                    # Budowanie przefiltrowanej bazy ludzi
                     baza = st.session_state.dane_uczestnikow
                     if wybrane_piony:
                         baza = baza[baza['Pion'].isin(wybrane_piony)]
@@ -202,7 +198,7 @@ else:
                         if " (Z)" in osoba and not zuchy_ok:
                             st.error("🛑 ZAKAZ: Zuchy nie mogą stać w nocy!")
                         if poprzedni_dzien and poprzedni_dzien in st.session_state.harmonogram_wart:
-                            wszyscy_wczoraj = [l dla podlista in st.session_state.harmonogram_wart[poprzedni_dzien].values() dla l in podlista]
+                            wszyscy_wczoraj = [l for podlista in st.session_state.harmonogram_wart[poprzedni_dzien].values() for l in podlista]
                             if osoba in wszyscy_wczoraj:
                                 st.warning("⚠️ Ta osoba miała wartę poprzedniej nocy!")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -212,7 +208,6 @@ else:
         st.session_state.harmonogram_wart[wybrany_dzien] = dzisiejsze_warty
         st.session_state.lokalizacje_wart[wybrany_dzien] = dzisiejsze_miejsca
         
-        # Reset licznika i przeliczenie od nowa na bazie wpisów
         st.session_state.dane_uczestnikow['Liczba_Wart'] = 0
         for d_klucz, warty_dniowe in st.session_state.harmonogram_wart.items():
             for g_klucz, spis_osob in warty_dniowe.items():
@@ -224,13 +219,12 @@ else:
         st.success("Dane zapisane do bazy obozowej!")
         st.rerun()
 
-    # --- GENEROWANIE CZYSTEGO PODGLĄDU ROZKAZU (DÓŁ STRONY) ---
+    # --- GENEROWANIE ROZKAZU (DÓŁ STRONY) ---
     st.markdown("---")
     st.subheader("🖨️ Generator Rozkazu Komendanta (Wydruk A4)")
     
     nastepny_dzien = f"{(int(wybrany_dzien.split('.')[0]) + 1):02d}.07"
 
-    # Przygotowanie wierszy tabeli w bezpieczny sposób (naprawa błędu z obrazka)
     wiersze_tabeli_html = ""
     for g, osoby in dzisiejsze_warty.items():
         lista_dla_godziny = []
@@ -247,7 +241,6 @@ else:
         </tr>
         """
 
-    # Całościowy szablon dokumentu
     szablon_rozkazu = f"""
     <div class="rozkaz-kartka">
         <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 20px;">
@@ -274,10 +267,8 @@ else:
     </div>
     """
 
-    # Słowo kluczowe unsafe_allow_html=True naprawia renderowanie kodu, dzięki czemu tabela nie wyświetli się jako tekst!
     st.markdown(szablon_rozkazu, unsafe_allow_html=True)
     
-    # Wywołanie systemowego okna drukowania
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🖨️ WYDRUKUJ ROZKAZ (ZAPISZ JAKO PDF)", use_container_width=True):
         st.html("<script>window.print();</script>")

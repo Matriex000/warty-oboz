@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+import io
 
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="System Wart Obozowych", page_icon="⛺", layout="wide")
@@ -99,17 +99,53 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Błąd struktury pliku: {e}")
 
-    if st.session_state.dane_uczestnikow is not None:
-        st.header("📊 Statystyki Wyjść")
-        st.dataframe(st.session_state.dane_uczestnikow[['Pion', 'Imię', 'Nazwisko', 'Liczba_Wart']].sort_values('Liczba_Wart'), hide_index=True)
-
 # --- PANEL GŁÓWNY ---
 st.title("⛺ Kreator Wart Obozowych")
 
 if st.session_state.dane_uczestnikow is None:
     st.info("Proszę wgrać plik Excel (.xlsx) w panelu bocznym, aby rozpocząć planowanie.")
 else:
-    wybrany_dzien = st.selectbox("📅 Wybierz datę wart:", DNI)
+    # --- NOWA SEKCJA: STATYSTYKI I RAPORTY ---
+    with st.expander("📊 ANALIZA I EKSPORT RAPORTÓW (Kliknij, aby rozwinąć)", expanded=True):
+        tab1, tab2, tab3 = st.tabs(["📈 Aktualne Statystyki", "🔍 Kto jeszcze nie był?", "💾 Pobierz Raport Excel"])
+        
+        with tab1:
+            st.write("Wszyscy uczestnicy posortowani od najmniejszej liczby odbytych wart:")
+            st.dataframe(
+                st.session_state.dane_uczestnikow[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']].sort_values('Liczba_Wart'), 
+                hide_index=True,
+                use_container_width=True
+            )
+            
+        with tab2:
+            nie_byli = st.session_state.dane_uczestnikow[st.session_state.dane_uczestnikow['Liczba_Wart'] == 0]
+            if not nie_byli.empty:
+                st.warning(f"Liczba osób z zerowym kontem wart: {len(nie_byli)}")
+                st.dataframe(nie_byli[['Pion', 'Imię', 'Nazwisko', 'Drużyna']], hide_index=True, use_container_width=True)
+            else:
+                st.success("🎉 Świetnie! Wszyscy obozowicze byli już na warcie przynajmniej raz!")
+
+        with tab3:
+            st.write("Wygeneruj plik ze zaktualizowanymi statystykami wart, gotowy do pobrania na dysk:")
+            
+            # Generowanie pliku Excel w pamięci RAM
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                st.session_state.dane_uczestnikow[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart']].to_excel(writer, index=False, sheet_name='Statystyki Wart')
+            buffer.seek(0)
+            
+            st.download_button(
+                label="📥 POBIERZ AKTUALNĄ LISTĘ W EXCELU (.XLSX)",
+                data=buffer,
+                file_name=f"raport_wart_oboz_{datetime.now().strftime('%d_%m')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
+    st.markdown("---")
+    
+    # --- PROCES PLANOWANIA WART ---
+    wybrany_dzien = st.selectbox("📅 Wybierz datę wart do edycji/zapisu:", DNI)
 
     if wybrany_dzien not in st.session_state.harmonogram_wart:
         st.session_state.harmonogram_wart[wybrany_dzien] = {g: [] for g in GODZINY_WART.keys()}
@@ -216,10 +252,10 @@ else:
                         match = st.session_state.dane_uczestnikow['Nazwa_Pelna'] == os
                         if match.any():
                             st.session_state.dane_uczestnikow.loc[match, 'Liczba_Wart'] += 1
-        st.success("Dane zapisane do bazy obozowej!")
+        st.success("Dane zapisane do bazy obozowej! Statystyki na górze ekranu zostały przeliczone.")
         st.rerun()
 
-    # --- GENEROWANIE CZYSTEGO WYDRUKU (CAŁKOWITE POMINIĘCIE MIKSU Z MARKDOWNEM) ---
+    # --- GENEROWANIE ROZKAZU ---
     st.markdown("---")
     st.subheader("🖨️ Generator Rozkazu Komendanta (Wydruk A4)")
     
@@ -241,7 +277,6 @@ else:
         </tr>
         """
 
-    # Pełna implementacja w st.html uniemożliwiająca Streamlitowi parsowanie tego jako kod tekstowy
     st.html(f"""
     <div class="rozkaz-kartka">
         <div style="text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 20px;">

@@ -57,7 +57,7 @@ WARTY_SPECYFIKACJA = {
 START_DATA = datetime(2026, 7, 19)
 DNI_OBOZU = [(START_DATA + timedelta(days=i)).strftime("%d.%02m") for i in range(15)]
 
-# --- PANEL BOCZNY (ELASTYCZNY IMPORT) ---
+# --- PANEL BOCZNY ---
 with st.sidebar:
     st.markdown("### PANEL IMPORTU BAZY")
     uploaded_file = st.file_uploader("Wgraj plik Excel", type=["xlsx"], label_visibility="collapsed")
@@ -65,10 +65,8 @@ with st.sidebar:
     if uploaded_file and st.session_state.db_uczestnicy is None:
         try:
             df = pd.read_excel(uploaded_file).fillna("")
-            # Standaryzacja nazw kolumn dla elastyczności
             cols_map = {str(c).strip().lower(): str(c) for c in df.columns}
             
-            # Funkcja szukająca kolumn po słowach kluczowych
             def znajdz_kolumne(keywords, default_name):
                 for k, v in cols_map.items():
                     if any(kw in k for kw in keywords): return v
@@ -81,7 +79,6 @@ with st.sidebar:
             col_liczba = znajdz_kolumne(['liczba_wart', 'warty', 'ile razy'], 'Liczba_Wart')
             col_ostatnia = znajdz_kolumne(['ostatnia_warta', 'kiedy'], 'Ostatnia_Warta')
 
-            # Wymuszenie istnienia kolumn w DataFrame bez wywalania błędu
             for c, orig in [('Imię', col_imie), ('Nazwisko', col_nazwisko), ('Pion', col_pion), ('Drużyna', col_druzyna)]:
                 if orig in df.columns: df[c] = df[orig]
                 else: df[c] = ""
@@ -102,7 +99,7 @@ with st.sidebar:
         st.markdown("---")
         st.markdown("### AKTYWNA LISTA OBOZOWA")
         st.dataframe(
-            st.session_state.db_uczestnicy.sort_values(by=["pion_waga", "Liczba_Wart"])[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']], 
+            st.session_state.db_uczestnicy.sort_values(by=["pion_waga", "Liczba_Wart"])[['Pion', 'Imię', 'Nazwisrow' if 'Nazwisrow' in df.columns else 'Nazwisko', 'Drużyna', 'Liczba_Wart']], 
             hide_index=True, use_container_width=True
         )
 
@@ -146,7 +143,7 @@ else:
 
             current_slots = st.session_state.liczba_straznikow[wybrany_dzien][godzina]
             while len(plan_dnia[godzina]) < current_slots: plan_dnia[godzina].append("")
-            while len(lokalizacje_dnia[godzina]) < current_slots: lokalizacje_dnia[godzina].append("Brama Główna")
+            while len(lokalizacje_dnia[godzina]) < current_slots: lokalizacje_dnia[godzina].append("")
             
             plan_dnia[godzina] = plan_dnia[godzina][:current_slots]
             lokalizacje_dnia[godzina] = lokalizacje_dnia[godzina][:current_slots]
@@ -183,21 +180,19 @@ else:
                         else:
                             plan_dnia[godzina][slot_idx] = ""
 
-                        # Nowe elastyczne pole wprowadzania lokalizacji / podobozowiska
+                        # Zmiana: Domyślnie pole tekstowe jest puste (opcjonalne)
                         lokalizacje_dnia[godzina][slot_idx] = st.text_input(
-                            "Miejsce warty:", value=lokalizacje_dnia[godzina][slot_idx], 
-                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Podobozowisko męskie"
+                            "Miejsce warty (opcjonalnie):", value=lokalizacje_dnia[godzina][slot_idx], 
+                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama Główna"
                         )
 
                         if plan_dnia[godzina][slot_idx]:
                             st_name = plan_dnia[godzina][slot_idx]
-                            # Pokazywanie przydziału drużyny bezpośrednio pod polem wyboru
                             m_druzyna = db[db['pelne_nazwisko'] == st_name]['Drużyna'].values
                             if len(m_druzyna) > 0 and m_druzyna[0]:
                                 st.markdown(f"<div style='font-size:11px; color:#a855f7;'>Drużyna: {m_druzyna[0]}</div>", unsafe_allow_html=True)
                             
-                            if " (Z)" in st_name:
-                                st.markdown("<span class='badge-z' style='font-size:11px;'>🟡 Pion: Zuch</span>", unsafe_allow_html=True)
+                            if " (Z)" in st_name: st.markdown("<span class='badge-z' style='font-size:11px;'>🟡 Pion: Zuch</span>", unsafe_allow_html=True)
                             elif " (H)" in st_name: st.markdown("<span class='badge-h' style='font-size:11px;'>🟢 Pion: Harcerz</span>", unsafe_allow_html=True)
                             elif " (HS)" in st_name: st.markdown("<span class='badge-hs' style='font-size:11px;'>🔵 Pion: Harcerz St.</span>", unsafe_allow_html=True)
                             elif " (W)" in st_name: st.markdown("<span class='badge-w' style='font-size:11px;'>🔴 Pion: Wędrownik</span>", unsafe_allow_html=True)
@@ -212,7 +207,6 @@ else:
             st.session_state.historia_wart[wybrany_dzien] = plan_dnia
             st.session_state.lokalizacje_wart[wybrany_dzien] = lokalizacje_dnia
             
-            # Przeliczenie liczby wart od zera na bazie wszystkich wpisów
             st.session_state.db_uczestnicy['Liczba_Wart'] = 0
             st.session_state.db_uczestnicy['Ostatnia_Warta'] = "-"
             
@@ -239,11 +233,9 @@ else:
         st.markdown("---")
         st.markdown("#### 📥 GENERATOR RAPORTU KOŃCOWEGO")
         
-        # Budowa dynamicznego raportu końcowego Excel
         export_df = db_stat[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart', 'Ostatnia_Warta']].copy()
         export_df['Czy_Był_Na_Warcie'] = export_df['Liczba_Wart'].apply(lambda x: "TAK" if x > 0 else "NIE")
         
-        # Dodanie szczegółowej historii warty do każdej osoby
         szczegoly_list = []
         for idx, row in db_stat.iterrows():
             pelne = row['pelne_nazwisko']
@@ -252,15 +244,15 @@ else:
                 for g, osoby in warty.items():
                     if pelne in osoby:
                         slot_idx = osoby.index(pelne)
-                        miejsce = st.session_state.lokalizacje_wart[d][g][slot_idx] if slot_idx < len(st.session_state.lokalizacje_wart[d][g]) else "Nieokreślone"
-                        historia_osoby.append(f"Noc {d} ({g} -> {miejsce})")
+                        miejsce = st.session_state.lokalizacje_wart[d][g][slot_idx] if slot_idx < len(st.session_state.lokalizacje_wart[d][g]) else ""
+                        miejsce_str = f" -> {miejsce}" if miejsce else ""
+                        historia_osoby.append(f"Noc {d} ({g}{miejsce_str})")
             szczegoly_list.append("; ".join(historia_osoby) if historia_osoby else "-")
             
         export_df['Dokładna_Historia_Służb'] = szczegoly_list
 
-        # Konwersja do pobrania
         buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             export_df.to_excel(writer, index=False, sheet_name='Raport Wart')
         
         st.download_button(

@@ -4,29 +4,37 @@ from datetime import datetime, timedelta
 import io
 
 # --- CONFIG INTERFEJSU ---
-st.set_page_config(page_title="System Wart Obozowych", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="System Wart Obozowych Pro", layout="wide", initial_sidebar_state="expanded")
 
-# Powrót do pierwszego, tradycyjnego stylu leśnego
+# Styl aplikacji pozostaje nowoczesny i ciemny, natomiast styl @media print wraca do pierwszego szablonu
 st.markdown("""
     <style>
-        .stApp { background-color: #112211; color: #ffffff; }
-        [data-testid="stSidebar"] { background-color: #0c1a0c !important; }
-        h1, h2, h3 { color: #44cc44 !important; font-family: 'Courier New', monospace; }
-        .warta-card {
-            background-color: #1b331b;
-            border: 1px solid #335533;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 12px;
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap');
+        * { font-family: 'Space Grotesk', sans-serif; }
+        .stApp { background: radial-gradient(circle at 50% 50%, #0f172a, #020617); color: #f8fafc; }
+        [data-testid="stSidebar"] { background-color: #0b0f19 !important; border-right: 2px solid #1e293b; }
+        .main-title {
+            font-family: 'Orbitron', sans-serif;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6);
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 38px; font-weight: 700; letter-spacing: 2px;
+            animation: glow 8s linear infinite; margin-bottom: 5px;
         }
-        .badge-z { color: #ffff44 !important; font-weight: bold; }
-        .badge-h { color: #44ff44 !important; font-weight: bold; }
-        .badge-hs { color: #4444ff !important; font-weight: bold; }
-        .badge-w { color: #ff4444 !important; font-weight: bold; }
+        @keyframes glow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .warta-card {
+            background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(8px);
+            border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 15px;
+        }
+        .badge-z { color: #facc15 !important; font-weight: bold; }
+        .badge-h { color: #22c55e !important; font-weight: bold; }
+        .badge-hs { color: #3b82f6 !important; font-weight: bold; }
+        .badge-w { color: #ef4444 !important; font-weight: bold; }
         .badge-i { color: #ffffff !important; font-weight: bold; }
-        .metric-card { background-color: #0c1a0c; border: 1px solid #335533; border-radius: 6px; padding: 10px; text-align: center; }
+        .metric-card { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 10px; padding: 15px; text-align: center; }
         
-        /* --- STYLE DRUKOWANIA --- */
+        /* --- PIERWOTNY STYL DLA WYDRUKU PDF --- */
         @media print {
             body * { visibility: hidden; background: white !important; color: black !important; }
             .print-area, .print-area * { visibility: visible; }
@@ -35,7 +43,7 @@ st.markdown("""
                 background: white !important; color: black !important;
                 padding: 20px; font-family: 'Courier New', monospace !important;
             }
-            [data-testid="stSidebar"], .stTabs, button, header { display: none !important; }
+            [data-testid="stSidebar"], .stTabs, button, .main-title, header { display: none !important; }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -63,7 +71,7 @@ DNI_OBOZU = [(START_DATA + timedelta(days=i)).strftime("%d.%02m") for i in range
 
 # --- PANEL BOCZNY ---
 with st.sidebar:
-    st.markdown("### IMPORT BAZY Z EXCELA")
+    st.markdown("### PANEL IMPORTU BAZY")
     uploaded_file = st.file_uploader("Wgraj plik Excel", type=["xlsx"], label_visibility="collapsed")
     
     if uploaded_file and st.session_state.db_uczestnicy is None:
@@ -95,25 +103,25 @@ with st.sidebar:
             df['pelne_nazwisko'] = df['Imię'].astype(str) + " " + df['Nazwisko'].astype(str) + " (" + df['Pion'] + ")"
             
             st.session_state.db_uczestnicy = df[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart', 'Ostatnia_Warta', 'pion_waga', 'pelne_nazwisko']]
-            st.success("Baza załadowana!")
+            st.success("Baza załadowana pomyślnie!")
         except Exception as e:
-            st.error(f"Błąd pliku: {e}")
+            st.error(f"Błąd struktury pliku: {e}")
 
     if st.session_state.db_uczestnicy is not None:
         st.markdown("---")
-        st.markdown("### LISTA UCZESTNIKÓW")
+        st.markdown("### AKTYWNA LISTA OBOZOWA")
         st.dataframe(
             st.session_state.db_uczestnicy.sort_values(by=["pion_waga", "Liczba_Wart"])[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']], 
             hide_index=True, use_container_width=True
         )
 
 # --- PANEL GŁÓWNY ---
-st.title("🌲 SYSTEM WART OBOZOWYCH 🌲")
+st.markdown("<div class='main-title'>SYSTEM WART OBOZOWYCH</div>", unsafe_allow_html=True)
 
 if st.session_state.db_uczestnicy is None:
-    st.info("Aby rozpocząć, załaduj plik Excel w panelu bocznym.")
+    st.info("Wgraj bazę z pliku Excel w panelu bocznym, aby uruchomić aplikację.")
 else:
-    tab_kreator, tab_statystyki = st.tabs(["📝 Kreator Rozkazu", "📊 Statystyki i Raport"])
+    tab_kreator, tab_statystyki = st.tabs(["📝 Kreator Rozkazu", "📊 Statystyki i Eksport"])
     
     with tab_kreator:
         wybrany_dzien = st.selectbox("Wybierz datę:", DNI_OBOZU, format_func=lambda x: f"Noc {x} / {(datetime.strptime(x+'.2026', '%d.%m.%Y') + timedelta(days=1)).strftime('%d.%02m')}")
@@ -133,8 +141,8 @@ else:
             col_meta, col_inputs, col_actions = st.columns([2, 4, 1])
             
             with col_meta:
-                st.markdown(f"<h3 style='margin:0; padding:0;'>{godzina}</h3>", unsafe_allow_html=True)
-                st.markdown(f"<small style='color:#aaaaaa;'>{info['opis']}</small>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:20px; font-weight:700; color:#6366f1; font-family:Orbitron;'>{godzina}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='color:#94a3b8; font-size:12px; margin-bottom:8px;'>{info['opis']}</div>", unsafe_allow_html=True)
                 filtr_pionu = st.multiselect("Filtruj piony:", ["Z", "H", "HS", "W", "I"], default=info['preferencja'], key=f"filter_{godzina}_{wybrany_dzien}")
                 
             with col_actions:
@@ -160,7 +168,7 @@ else:
                         db_filtered = db[db['Pion'].isin(filtr_pionu)] if filtr_pionu else db
                         db_sorted = db_filtered.sort_values(by=['pion_waga', 'Liczba_Wart'], ascending=[True, True])
                         
-                        opcje = ["-- Wybierz Wariant --", "Wpis ręczny (Wyjątek)"]
+                        opcje = ["-- Wybierz --", "Wpis ręczny (Wyjątek)"]
                         for _, row in db_sorted.iterrows():
                             emoji = PION_COLORS.get(row['Pion'], '▪️')
                             druzyna_str = f" [{row['Drużyna']}]" if row['Drużyna'] else ""
@@ -175,38 +183,38 @@ else:
                             if pasujace_opcje: idx_default = pasujace_opcje[0]
                             else: idx_default = 1; is_manual = True
                                 
-                        wybor = st.selectbox(f"Warta {slot_idx+1}", opcje, index=idx_default, key=f"sl_{godzina}_{slot_idx}_{wybrany_dzien}", label_visibility="collapsed")
+                        wybor = st.selectbox(f"Osoba {slot_idx+1}", opcje, index=idx_default, key=f"sl_{godzina}_{slot_idx}_{wybrany_dzien}", label_visibility="collapsed")
                         
                         if wybor == "Wpis ręczny (Wyjątek)" or is_manual:
                             plan_dnia[godzina][slot_idx] = st.text_input(f"Ręcznie:", value=aktualny_wybor, key=f"mn_{godzina}_{slot_idx}_{wybrany_dzien}", label_visibility="collapsed")
-                        elif wybor != "-- Wybierz Wariant --":
+                        elif wybor != "-- Wybierz --":
                             plan_dnia[godzina][slot_idx] = wybor.split(" (Warty")[0][2:].split(" [")[0]
                         else:
                             plan_dnia[godzina][slot_idx] = ""
 
                         lokalizacje_dnia[godzina][slot_idx] = st.text_input(
                             "Miejsce warty:", value=lokalizacje_dnia[godzina][slot_idx], 
-                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="Wpisz np. Brama"
+                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama"
                         )
 
                         if plan_dnia[godzina][slot_idx]:
                             st_name = plan_dnia[godzina][slot_idx]
                             m_druzyna = db[db['pelne_nazwisko'] == st_name]['Drużyna'].values
                             if len(m_druzyna) > 0 and m_druzyna[0]:
-                                st.markdown(f"<div style='font-size:11px; color:#bbffbb;'>Drużyna: {m_druzyna[0]}</div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='font-size:11px; color:#a855f7;'>Drużyna: {m_druzyna[0]}</div>", unsafe_allow_html=True)
                             
                             if " (Z)" in st_name: st.markdown("<span class='badge-z' style='font-size:11px;'>🟡 Pion: Zuch</span>", unsafe_allow_html=True)
                             elif " (H)" in st_name: st.markdown("<span class='badge-h' style='font-size:11px;'>🟢 Pion: Harcerz</span>", unsafe_allow_html=True)
-                            elif " (HS)" in st_name: st.markdown("<span class='badge-hs' style='font-size:11px;'>🔵 Pion: HS</span>", unsafe_allow_html=True)
+                            elif " (HS)" in st_name: st.markdown("<span class='badge-hs' style='font-size:11px;'>🔵 Pion: Harcerz St.</span>", unsafe_allow_html=True)
                             elif " (W)" in st_name: st.markdown("<span class='badge-w' style='font-size:11px;'>🔴 Pion: Wędrownik</span>", unsafe_allow_html=True)
                             elif " (I)" in st_name: st.markdown("<span class='badge-i' style='font-size:11px;'>⚪ Pion: Instruktor</span>", unsafe_allow_html=True)
 
                             if wczorajszy_dzien and wczorajszy_dzien in st.session_state.historia_wart:
                                 if st_name in [item for sublist in st.session_state.historia_wart[wczorajszy_dzien].values() for item in sublist]:
-                                    st.markdown("<span style='color:#ff5555; font-size:11px; font-weight:bold;'>⚠️ Służył(a) poprzedniej nocy!</span>", unsafe_allow_html=True)
+                                    st.markdown("<span style='color:#ec4899; font-size:11px; font-weight:bold;'>⚠️ Stał(a) poprzedniej nocy!</span>", unsafe_allow_html=True)
             st.markdown(f"</div>", unsafe_allow_html=True)
 
-        if st.button("ZAPISZ ROZSTAWIENIE I PRZELICZ WARTY", type="primary", use_container_width=True):
+        if st.button("ZAPISZ I ZAKTUALIZUJ STATYSTYKI W EXCELU", type="primary", use_container_width=True):
             st.session_state.historia_wart[wybrany_dzien] = plan_dnia
             st.session_state.lokalizacje_wart[wybrany_dzien] = lokalizacje_dnia
             
@@ -221,13 +229,13 @@ else:
                             if maska.any():
                                 st.session_state.db_uczestnicy.loc[maska, 'Liczba_Wart'] += 1
                                 st.session_state.db_uczestnicy.loc[maska, 'Ostatnia_Warta'] = d
-            st.success("Dane zapisane do bazy głównej!")
+            st.success("Zaktualizowano dane w systemie!")
             st.rerun()
 
         st.markdown("---")
-        st.markdown("### 🖨️ Podgląd Rozkazu na Tablicę")
+        st.markdown("### 🖨️ Podgląd Rozkazu przed Wydrukiem")
 
-        # Budowanie tabeli bez zbędnych słów kluczowych "Obsada", "Posteronki". Czysty dokument tekstowy.
+        # Czysta, klasyczna budowa pierwszej tabeli bez słów "Obsada posterunków" ani "Post. X"
         straznicy_tabela = ""
         for g, osoby in plan_dnia.items():
             straznicy_str = []
@@ -246,12 +254,6 @@ else:
             <p style="text-align: center; margin-top: 0; font-size: 14px; color: black !important;">Noc: {wybrany_dzien} | Wygenerowano: {datetime.now().strftime('%d.%m.%Y')}</p>
             <hr style="border: 1px solid black; margin-bottom: 20px;">
             <table style="width: 100%; border-collapse: collapse; color: black !important;">
-                <thead>
-                    <tr style="border-bottom: 2px solid black; text-align: left;">
-                        <th style="padding: 12px; font-weight: bold; color: black !important;">GODZINA</th>
-                        <th style="padding: 12px; font-weight: bold; color: black !important;">SŁUŻBA WARTOWNICZA</th>
-                    </tr>
-                </thead>
                 <tbody>
                     {straznicy_tabela}
                 </tbody>
@@ -264,21 +266,20 @@ else:
         st.html(kod_html_druku)
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Tradycyjne wywołanie systemowego okna drukowania
-        if st.button("🖨️ DRUKUJ ROZKAZ NA TABLICĘ (ZAPISZ JAKO PDF)", type="secondary", use_container_width=True):
+        if st.button("🖨️ URUCHOM DRUKOWANIE SYSTEMOWE (ZAPISZ JAKO PDF)", type="secondary", use_container_width=True):
             st.html("<script>window.print();</script>")
 
     with tab_statystyki:
-        st.markdown("#### 📊 Obciążenia warty ogółem")
+        st.markdown("#### 📊 Podsumowanie Obciążeń Służbami")
         db_stat = st.session_state.db_uczestnicy
         
         c_tot, c_avg, c_un = st.columns(3)
-        c_tot.markdown(f"<div class='metric-card'><h5>Liczba służb ogółem</h5><h2>{db_stat['Liczba_Wart'].sum()}</h2></div>", unsafe_allow_html=True)
-        c_avg.markdown(f"<div class='metric-card'><h5>Średnio na osobę</h5><h2>{db_stat['Liczba_Wart'].mean():.1f}</h2></div>", unsafe_allow_html=True)
-        c_un.markdown(f"<div class='metric-card'><h5>Liczba osób bez warty</h5><h2>{len(db_stat[db_stat['Liczba_Wart'] == 0])}</h2></div>", unsafe_allow_html=True)
+        c_tot.markdown(f"<div class='metric-card'><h5>Suma wart</h5><h2>{db_stat['Liczba_Wart'].sum()}</h2></div>", unsafe_allow_html=True)
+        c_avg.markdown(f"<div class='metric-card'><h5>Średnia na osobę</h5><h2>{db_stat['Liczba_Wart'].mean():.1f}</h2></div>", unsafe_allow_html=True)
+        c_un.markdown(f"<div class='metric-card'><h5>Jeszcze nie stali</h5><h2>{len(db_stat[db_stat['Liczba_Wart'] == 0])}</h2></div>", unsafe_allow_html=True)
         
         st.markdown("---")
-        st.markdown("#### 📥 POBIERANIE RAPORTU KOŃCOWEGO")
+        st.markdown("#### 📥 GENERATOR RAPORTU KOŃCOWEGO")
         
         export_df = db_stat[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart', 'Ostatnia_Warta']].copy()
         export_df['Czy_Był_Na_Warcie'] = export_df['Liczba_Wart'].apply(lambda x: "TAK" if x > 0 else "NIE")
@@ -303,7 +304,7 @@ else:
             export_df.to_excel(writer, index=False, sheet_name='Raport Wart')
         
         st.download_button(
-            label="POBIERZ ARKUSZ EXCEL Z PODSUMOWANIEM (.XLSX)",
+            label="POBIERZ ARKUSZ KOŃCOWY EXCEL (.XLSX)",
             data=buffer.getvalue(),
             file_name=f"Raport_Wart_Obóz_2026.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

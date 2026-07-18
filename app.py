@@ -154,94 +154,102 @@ else:
     idx_dnia = DNI.index(wybrany_dzien)
     poprzedni_dzien = DNI[idx_dnia - 1] if idx_dnia > 0 else None
 
-    for godzina, preferowane_piony in GODZINY_WART.items():
-        st.markdown(f"<div class='warta-sekcja'>", unsafe_allow_html=True)
-        c_info, c_wybory, c_kontrolka = st.columns([2, 5, 1])
+    # Zbieranie danych wejściowych w formularzu Streamlit
+    with st.form(key=f"formularz_wart_{wybrany_dzien}"):
+        for godzina, preferowane_piony in GODZINY_WART.items():
+            st.markdown(f"<div class='warta-sekcja'>", unsafe_allow_html=True)
+            c_info, c_wybory = st.columns([3, 5])
+            
+            with c_info:
+                st.markdown(f"### ⏰ {godzina}")
+                zuchy_ok = "Z" in preferowane_piony
+                st.caption(f"Sugerowane: {', '.join(preferowane_piony)} " + ("" if zuchy_ok else "(ZAKAZ ZUCHÓW)"))
+                wybrane_piony = st.multiselect("Filtruj pion wiekowy:", ["Z", "H", "HS", "W", "I"], default=preferowane_piony, key=f"pion_{godzina}_{wybrany_dzien}")
+
+            ile_miejsc = st.session_state.liczba_wartowników[wybrany_dzien][godzina]
+            while len(dzisiejsze_warty[godzina]) < ile_miejsc: dzisiejsze_warty[godzina].append("")
+            while len(dzisiejsze_miejsca[godzina]) < ile_miejsc: dzisiejsze_miejsca[godzina].append("")
+            dzisiejsze_warty[godzina] = dzisiejsze_warty[godzina][:ile_miejsc]
+            dzisiejsze_miejsca[godzina] = dzisiejsze_miejsca[godzina][:ile_miejsc]
+
+            with c_wybory:
+                kolumny_slotow = st.columns(ile_miejsc)
+                for i in range(ile_miejsc):
+                    with kolumny_slotow[i]:
+                        baza = st.session_state.dane_uczestnikow
+                        if wybrane_piony:
+                            baza = baza[baza['Pion'].isin(wybrane_piony)]
+                        
+                        baza_posortowana = baza.sort_values(by=['Liczba_Wart', 'Pion'])
+                        lista_wyboru = ["-- Wybierz wartownika --", "⚠️ Ręczny wpis spoza listy"]
+                        for _, row in baza_posortowana.iterrows():
+                            ico = KOLORY_PIONOW.get(row['Pion'], '▪️')
+                            druzyna = f" [{row['Drużyna']}]" if row['Drużyna'] else ""
+                            lista_wyboru.append(f"{ico} {row['Nazwa_Pelna']}{druzyna} (Służb: {row['Liczba_Wart']})")
+
+                        obecny = dzisiejsze_warty[godzina][i]
+                        indeks_startowy = 0
+                        reczny_tryb = False
+
+                        if obecny:
+                            dopasowania = [idx for idx, tekst in enumerate(lista_wyboru) if obecny in tekst]
+                            if dopasowania: indeks_startowy = dopasowania[0]
+                            else: indeks_startowy = 1; reczny_tryb = True
+
+                        wybrana_pozycja = st.selectbox(f"Wartownik {i+1}", lista_wyboru, index=indeks_startowy, key=f"sb_{godzina}_{i}_{wybrany_dzien}")
+                        
+                        if wybrana_pozycja == "⚠️ Ręczny wpis spoza listy" or reczny_tryb:
+                            dzisiejsze_warty[godzina][i] = st.text_input("Wpisz dane:", value=obecny, key=f"ti_{godzina}_{i}_{wybrany_dzien}")
+                        elif wybrana_pozycja != "-- Wybierz wartownika --":
+                            dzisiejsze_warty[godzina][i] = wybrana_pozycja.split(" (Służb:")[0][2:].split(" [")[0]
+                        else:
+                            dzisiejsze_warty[godzina][i] = ""
+
+                        dzisiejsze_miejsca[godzina][i] = st.text_input("Posterunek:", value=dzisiejsze_miejsca[godzina][i], key=f"pos_{godzina}_{i}_{wybrany_dzien}")
+
+                        osoba = dzisiejsze_warty[godzina][i]
+                        if osoba:
+                            if " (Z)" in osoba and not zuchy_ok:
+                                st.error("🛑 ZAKAZ: Zuchy w nocy!")
+                            if poprzedni_dzien and poprzedni_dzien in st.session_state.harmonogram_wart:
+                                wszyscy_wczoraj = [l for podlista in st.session_state.harmonogram_wart[poprzedni_dzien].values() for l in podlista]
+                                if osoba in wszyscy_wczoraj:
+                                    st.warning("⚠️ Ta osoba stała wczoraj!")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # Przycisk wysyłania formularza trwale zapisujący dane
+        zapisz_klikniete = st.form_submit_button("💾 ZAPISZ GRAFIK I PRZELICZ STATYSTYKI", use_container_width=True, type="primary")
         
-        with c_info:
-            st.markdown(f"### ⏰ {godzina}")
-            zuchy_ok = "Z" in preferowane_piony
-            st.caption(f"Sugerowane: {', '.join(preferowane_piony)} " + ("" if zuchy_ok else "(ZAKAZ ZUCHÓW)"))
-            wybrane_piony = st.multiselect("Filtruj pion wiekowy:", ["Z", "H", "HS", "W", "I"], default=preferowane_piony, key=f"pion_{godzina}_{wybrany_dzien}")
+        if zapisz_klikniete:
+            st.session_state.harmonogram_wart[wybrany_dzien] = dzisiejsze_warty
+            st.session_state.lokalizacje_wart[wybrany_dzien] = dzisiejsze_miejsca
+            
+            # Przeliczenie sumy wszystkich wart od nowa
+            st.session_state.dane_uczestnikow['Liczba_Wart'] = 0
+            for d_klucz, warty_dniowe in st.session_state.harmonogram_wart.items():
+                for g_klucz, spis_osob in warty_dniowe.items():
+                    for os in spis_osob:
+                        if os:
+                            match = st.session_state.dane_uczestnikow['Nazwa_Pelna'] == os
+                            if match.any():
+                                st.session_state.dane_uczestnikow.loc[match, 'Liczba_Wart'] += 1
+            st.success("Zapisano pomyślnie!")
+            st.rerun()
 
-        with c_kontrolka:
-            st.write("Wartowników:")
-            c_plus, c_minus = st.columns(2)
-            with c_plus:
-                if st.button("➕", key=f"p_{godzina}_{wybrany_dzien}"):
-                    st.session_state.liczba_wartowników[wybrany_dzien][godzina] += 1
-                    st.rerun()
-            with c_minus:
-                if st.button("➖", key=f"m_{godzina}_{wybrany_dzien}"):
-                    if st.session_state.liczba_wartowników[wybrany_dzien][godzina] > 1:
-                        st.session_state.liczba_wartowników[wybrany_dzien][godzina] -= 1
-                        st.rerun()
-
-        ile_miejsc = st.session_state.liczba_wartowników[wybrany_dzien][godzina]
-        while len(dzisiejsze_warty[godzina]) < ile_miejsc: dzisiejsze_warty[godzina].append("")
-        while len(dzisiejsze_miejsca[godzina]) < ile_miejsc: dzisiejsze_miejsca[godzina].append("")
-        dzisiejsze_warty[godzina] = dzisiejsze_warty[godzina][:ile_miejsc]
-        dzisiejsze_miejsca[godzina] = dzisiejsze_miejsca[godzina][:ile_miejsc]
-
-        with c_wybory:
-            kolumny_slotow = st.columns(ile_miejsc)
-            for i in range(ile_miejsc):
-                with kolumny_slotow[i]:
-                    baza = st.session_state.dane_uczestnikow
-                    if wybrane_piony:
-                        baza = baza[baza['Pion'].isin(wybrane_piony)]
-                    
-                    baza_posortowana = baza.sort_values(by=['Liczba_Wart', 'Pion'])
-                    lista_wyboru = ["-- Wybierz wartownika --", "⚠️ Ręczny wpis spoza listy"]
-                    for _, row in baza_posortowana.iterrows():
-                        ico = KOLORY_PIONOW.get(row['Pion'], '▪️')
-                        druzyna = f" [{row['Drużyna']}]" if row['Drużyna'] else ""
-                        lista_wyboru.append(f"{ico} {row['Nazwa_Pelna']}{druzyna} (Służb: {row['Liczba_Wart']})")
-
-                    obecny = dzisiejsze_warty[godzina][i]
-                    indeks_startowy = 0
-                    reczny_tryb = False
-
-                    if obecny:
-                        dopasowania = [idx for idx, tekst in enumerate(lista_wyboru) if obecny in tekst]
-                        if dopasowania: indeks_startowy = dopasowania[0]
-                        else: indeks_startowy = 1; reczny_tryb = True
-
-                    wybrana_pozycja = st.selectbox(f"Wartownik {i+1}", lista_wyboru, index=indeks_startowy, key=f"sb_{godzina}_{i}_{wybrany_dzien}")
-                    
-                    if wybrana_pozycja == "⚠️ Ręczny wpis spoza listy" or reczny_tryb:
-                        dzisiejsze_warty[godzina][i] = st.text_input("Wpisz dane:", value=obecny, key=f"ti_{godzina}_{i}_{wybrany_dzien}")
-                    elif wybrana_pozycja != "-- Wybierz wartownika --":
-                        dzisiejsze_warty[godzina][i] = wybrana_pozycja.split(" (Służb:")[0][2:].split(" [")[0]
-                    else:
-                        dzisiejsze_warty[godzina][i] = ""
-
-                    dzisiejsze_miejsca[godzina][i] = st.text_input("Posterunek:", value=dzisiejsze_miejsca[godzina][i], key=f"pos_{godzina}_{i}_{wybrany_dzien}")
-
-                    osoba = dzisiejsze_warty[godzina][i]
-                    if osoba:
-                        if " (Z)" in osoba and not zuchy_ok:
-                            st.error("🛑 ZAKAZ: Zuchy w nocy!")
-                        if poprzedni_dzien and poprzedni_dzien in st.session_state.harmonogram_wart:
-                            wszyscy_wczoraj = [l for podlista in st.session_state.harmonogram_wart[poprzedni_dzien].values() for l in podlista]
-                            if osoba in wszyscy_wczoraj:
-                                st.warning("⚠️ Ta osoba stała wczoraj!")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    if st.button("💾 ZAPISZ GRAFIK I PRZELICZ STATYSTYKI", type="primary", use_container_width=True):
-        st.session_state.harmonogram_wart[wybrany_dzien] = dzisiejsze_warty
-        st.session_state.lokalizacje_wart[wybrany_dzien] = dzisiejsze_miejsca
-        
-        st.session_state.dane_uczestnikow['Liczba_Wart'] = 0
-        for d_klucz, warty_dniowe in st.session_state.harmonogram_wart.items():
-            for g_klucz, spis_osob in warty_dniowe.items():
-                for os in spis_osob:
-                    if os:
-                        match = st.session_state.dane_uczestnikow['Nazwa_Pelna'] == os
-                        if match.any():
-                            st.session_state.dane_uczestnikow.loc[match, 'Liczba_Wart'] += 1
-        st.success("Zapisano! Tabele statystyk na górze strony zaktualizowały się.")
-        st.rerun()
+    # Zmiana liczby wartowników poza głównym formularzem (aby uniknąć resetu wyboru)
+    st.write("🔧 Szybka zmiana liczby stanowisk dla wybranej nocy:")
+    c_godz, c_plus, c_minus = st.columns([4, 2, 2])
+    with c_godz:
+        g_zmiana = st.selectbox("Wybierz godzinę do modyfikacji:", list(GODZINY_WART.keys()), key="zmiana_godz")
+    with c_plus:
+        if st.button("➕ Dodaj stanowisko", use_container_width=True):
+            st.session_state.liczba_wartowników[wybrany_dzien][g_zmiana] += 1
+            st.rerun()
+    with c_minus:
+        if st.button("➖ Usuń stanowisko", use_container_width=True):
+            if st.session_state.liczba_wartowników[wybrany_dzien][g_zmiana] > 1:
+                st.session_state.liczba_wartowników[wybrany_dzien][g_zmiana] -= 1
+                st.rerun()
 
     # --- SEKCJA 3: PODGLĄD ROZKAZU DO DRUKU ---
     st.markdown("---")

@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
 import io
+from datetime import datetime
 
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="System Wart Obozowych", page_icon="⛺", layout="wide")
 
-# --- STYLE CSS (W tym reguły dla wydruku A4) ---
+# --- STYLE CSS ---
 st.markdown("""
     <style>
         .stApp { background-color: #0e1117; color: #ffffff; }
@@ -32,7 +33,6 @@ st.markdown("""
         .tabela-rozkaz th { border-bottom: 2px solid black; text-align: left; padding: 8px; font-weight: bold; }
         .tabela-rozkaz td { padding: 12px 8px; border-bottom: 1px dashed #666666; }
 
-        /* Obsługa systemowego drukowania PDF */
         @media print {
             body * { visibility: hidden; }
             .rozkaz-kartka, .rozkaz-kartka * { visibility: visible; }
@@ -54,7 +54,6 @@ if 'harmonogram_wart' not in st.session_state: st.session_state.harmonogram_wart
 if 'liczba_wartowników' not in st.session_state: st.session_state.liczba_wartowników = {}
 if 'lokalizacje_wart' not in st.session_state: st.session_state.lokalizacje_wart = {}
 
-# Konfiguracja godzin i preferencji
 GODZINY_WART = {
     "22:00 - 23:00": ["Z"],
     "23:00 - 00:00": ["Z"],
@@ -100,52 +99,49 @@ with st.sidebar:
             st.error(f"Błąd struktury pliku: {e}")
 
 # --- PANEL GŁÓWNY ---
-st.title("⛺ Kreator Wart Obozowych")
+st.title("⛺ Kreator i Statystyki Wart Obozowych")
 
 if st.session_state.dane_uczestnikow is None:
-    st.info("Proszę wgrać plik Excel (.xlsx) w panelu bocznym, aby rozpocząć planowanie.")
+    st.info("Proszę wgrać plik Excel (.xlsx) w panelu bocznym, aby rozpocząć pracę.")
 else:
-    # --- NOWA SEKCJA: STATYSTYKI I RAPORTY ---
-    with st.expander("📊 ANALIZA I EKSPORT RAPORTÓW (Kliknij, aby rozwinąć)", expanded=True):
-        tab1, tab2, tab3 = st.tabs(["📈 Aktualne Statystyki", "🔍 Kto jeszcze nie był?", "💾 Pobierz Raport Excel"])
+    # --- SEKCJA 1: STATYSTYKI I RAPORTY DO POBRANIA ---
+    st.header("📊 Analiza i Pobieranie Raportów")
+    tab1, tab2, tab3 = st.tabs(["📈 Bieżący Licznik Wart", "🔍 Kto jeszcze nie stał?", "💾 Pobierz Końcowy Excel"])
+    
+    with tab1:
+        st.dataframe(
+            st.session_state.dane_uczestnikow[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']].sort_values('Liczba_Wart'), 
+            hide_index=True,
+            use_container_width=True
+        )
         
-        with tab1:
-            st.write("Wszyscy uczestnicy posortowani od najmniejszej liczby odbytych wart:")
-            st.dataframe(
-                st.session_state.dane_uczestnikow[['Pion', 'Imię', 'Nazwisko', 'Drużyna', 'Liczba_Wart']].sort_values('Liczba_Wart'), 
-                hide_index=True,
-                use_container_width=True
-            )
-            
-        with tab2:
-            nie_byli = st.session_state.dane_uczestnikow[st.session_state.dane_uczestnikow['Liczba_Wart'] == 0]
-            if not nie_byli.empty:
-                st.warning(f"Liczba osób z zerowym kontem wart: {len(nie_byli)}")
-                st.dataframe(nie_byli[['Pion', 'Imię', 'Nazwisko', 'Drużyna']], hide_index=True, use_container_width=True)
-            else:
-                st.success("🎉 Świetnie! Wszyscy obozowicze byli już na warcie przynajmniej raz!")
+    with tab2:
+        nie_byli = st.session_state.dane_uczestnikow[st.session_state.dane_uczestnikow['Liczba_Wart'] == 0]
+        if not nie_byli.empty:
+            st.warning(f"Liczba osób, które jeszcze nie odbyły żadnej warty: {len(nie_byli)}")
+            st.dataframe(nie_byli[['Pion', 'Imię', 'Nazwisko', 'Drużyna']], hide_index=True, use_container_width=True)
+        else:
+            st.success("🎉 Wszyscy uczestnicy obozu pełnili już wartę chociaż raz!")
 
-        with tab3:
-            st.write("Wygeneruj plik ze zaktualizowanymi statystykami wart, gotowy do pobrania na dysk:")
-            
-            # Generowanie pliku Excel w pamięci RAM
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                st.session_state.dane_uczestnikow[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart']].to_excel(writer, index=False, sheet_name='Statystyki Wart')
-            buffer.seek(0)
-            
-            st.download_button(
-                label="📥 POBIERZ AKTUALNĄ LISTĘ W EXCELU (.XLSX)",
-                data=buffer,
-                file_name=f"raport_wart_oboz_{datetime.now().strftime('%d_%m')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+    with tab3:
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            st.session_state.dane_uczestnikow[['Imię', 'Nazwisko', 'Pion', 'Drużyna', 'Liczba_Wart']].to_excel(writer, index=False, sheet_name='Raport Wart')
+        buffer.seek(0)
+        
+        st.download_button(
+            label="📥 POBIERZ UAKTUALNIONY ARKUSZ EXCEL (.XLSX)",
+            data=buffer,
+            file_name=f"raport_koncowy_wart_{datetime.now().strftime('%d_%m')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
 
     st.markdown("---")
     
-    # --- PROCES PLANOWANIA WART ---
-    wybrany_dzien = st.selectbox("📅 Wybierz datę wart do edycji/zapisu:", DNI)
+    # --- SEKCJA 2: KREATOR WART ---
+    st.header("🛠️ Kreator Przydziału na Grafik")
+    wybrany_dzien = st.selectbox("📅 Wybierz datę nocy:", DNI)
 
     if wybrany_dzien not in st.session_state.harmonogram_wart:
         st.session_state.harmonogram_wart[wybrany_dzien] = {g: [] for g in GODZINY_WART.keys()}
@@ -155,25 +151,21 @@ else:
     dzisiejsze_warty = st.session_state.harmonogram_wart[wybrany_dzien]
     dzisiejsze_miejsca = st.session_state.lokalizacje_wart[wybrany_dzien]
 
-    st.subheader(f"🛠️ Przydział osób na noc {wybrany_dzien}")
-
     idx_dnia = DNI.index(wybrany_dzien)
     poprzedni_dzien = DNI[idx_dnia - 1] if idx_dnia > 0 else None
 
-    # Generowanie interfejsu wyboru
     for godzina, preferowane_piony in GODZINY_WART.items():
         st.markdown(f"<div class='warta-sekcja'>", unsafe_allow_html=True)
-        
         c_info, c_wybory, c_kontrolka = st.columns([2, 5, 1])
         
         with c_info:
             st.markdown(f"### ⏰ {godzina}")
             zuchy_ok = "Z" in preferowane_piony
-            st.caption(f"Sugerowane piony: {', '.join(preferowane_piony)} " + ("" if zuchy_ok else "(ZAKAZ ZUCHÓW)"))
+            st.caption(f"Sugerowane: {', '.join(preferowane_piony)} " + ("" if zuchy_ok else "(ZAKAZ ZUCHÓW)"))
             wybrane_piony = st.multiselect("Filtruj pion wiekowy:", ["Z", "H", "HS", "W", "I"], default=preferowane_piony, key=f"pion_{godzina}_{wybrany_dzien}")
 
         with c_kontrolka:
-            st.write("Liczba osób:")
+            st.write("Wartowników:")
             c_plus, c_minus = st.columns(2)
             with c_plus:
                 if st.button("➕", key=f"p_{godzina}_{wybrany_dzien}"):
@@ -186,7 +178,6 @@ else:
                         st.rerun()
 
         ile_miejsc = st.session_state.liczba_wartowników[wybrany_dzien][godzina]
-        
         while len(dzisiejsze_warty[godzina]) < ile_miejsc: dzisiejsze_warty[godzina].append("")
         while len(dzisiejsze_miejsca[godzina]) < ile_miejsc: dzisiejsze_miejsca[godzina].append("")
         dzisiejsze_warty[godzina] = dzisiejsze_warty[godzina][:ile_miejsc]
@@ -201,7 +192,6 @@ else:
                         baza = baza[baza['Pion'].isin(wybrane_piony)]
                     
                     baza_posortowana = baza.sort_values(by=['Liczba_Wart', 'Pion'])
-                    
                     lista_wyboru = ["-- Wybierz wartownika --", "⚠️ Ręczny wpis spoza listy"]
                     for _, row in baza_posortowana.iterrows():
                         ico = KOLORY_PIONOW.get(row['Pion'], '▪️')
@@ -220,27 +210,25 @@ else:
                     wybrana_pozycja = st.selectbox(f"Wartownik {i+1}", lista_wyboru, index=indeks_startowy, key=f"sb_{godzina}_{i}_{wybrany_dzien}")
                     
                     if wybrana_pozycja == "⚠️ Ręczny wpis spoza listy" or reczny_tryb:
-                        dzisiejsze_warty[godzina][i] = st.text_input("Wpisz imię i nazwisko:", value=obecny, key=f"ti_{godzina}_{i}_{wybrany_dzien}")
+                        dzisiejsze_warty[godzina][i] = st.text_input("Wpisz dane:", value=obecny, key=f"ti_{godzina}_{i}_{wybrany_dzien}")
                     elif wybrana_pozycja != "-- Wybierz wartownika --":
                         dzisiejsze_warty[godzina][i] = wybrana_pozycja.split(" (Służb:")[0][2:].split(" [")[0]
                     else:
                         dzisiejsze_warty[godzina][i] = ""
 
-                    dzisiejsze_miejsca[godzina][i] = st.text_input("Posterunek:", value=dzisiejsze_miejsca[godzina][i], key=f"pos_{godzina}_{i}_{wybrany_dzien}", placeholder="Brama / Obóz")
+                    dzisiejsze_miejsca[godzina][i] = st.text_input("Posterunek:", value=dzisiejsze_miejsca[godzina][i], key=f"pos_{godzina}_{i}_{wybrany_dzien}")
 
-                    # Zabezpieczenia i ostrzeżenia
                     osoba = dzisiejsze_warty[godzina][i]
                     if osoba:
                         if " (Z)" in osoba and not zuchy_ok:
-                            st.error("🛑 ZAKAZ: Zuchy nie mogą stać w nocy!")
+                            st.error("🛑 ZAKAZ: Zuchy w nocy!")
                         if poprzedni_dzien and poprzedni_dzien in st.session_state.harmonogram_wart:
                             wszyscy_wczoraj = [l for podlista in st.session_state.harmonogram_wart[poprzedni_dzien].values() for l in podlista]
                             if osoba in wszyscy_wczoraj:
-                                st.warning("⚠️ Ta osoba miała wartę poprzedniej nocy!")
+                                st.warning("⚠️ Ta osoba stała wczoraj!")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ZAPIS I AKTUALIZACJA LICZNIKÓW
-    if st.button("💾 ZAPISZ HARMONOGRAM I ZAKTUALIZUJ STATYSTYKI", type="primary", use_container_width=True):
+    if st.button("💾 ZAPISZ GRAFIK I PRZELICZ STATYSTYKI", type="primary", use_container_width=True):
         st.session_state.harmonogram_wart[wybrany_dzien] = dzisiejsze_warty
         st.session_state.lokalizacje_wart[wybrany_dzien] = dzisiejsze_miejsca
         
@@ -252,15 +240,14 @@ else:
                         match = st.session_state.dane_uczestnikow['Nazwa_Pelna'] == os
                         if match.any():
                             st.session_state.dane_uczestnikow.loc[match, 'Liczba_Wart'] += 1
-        st.success("Dane zapisane do bazy obozowej! Statystyki na górze ekranu zostały przeliczone.")
+        st.success("Zapisano! Tabele statystyk na górze strony zaktualizowały się.")
         st.rerun()
 
-    # --- GENEROWANIE ROZKAZU ---
+    # --- SEKCJA 3: PODGLĄD ROZKAZU DO DRUKU ---
     st.markdown("---")
-    st.subheader("🖨️ Generator Rozkazu Komendanta (Wydruk A4)")
+    st.subheader("🖨️ Generator Rozkazu (Podgląd A4)")
     
     nastepny_dzien = f"{(int(wybrany_dzien.split('.')[0]) + 1):02d}.07"
-
     wiersze_tabeli_html = ""
     for g, osoby in dzisiejsze_warty.items():
         lista_dla_godziny = []
@@ -283,11 +270,11 @@ else:
             <h1 style="margin: 0; font-size: 24px; text-transform: uppercase;">ROZKAZ NA WARTĘ NOCNĄ</h1>
             <h3 style="margin: 5px 0 0 0; font-weight: normal;">Noc: {wybrany_dzien} / {nastepny_dzien} 2026 r.</h3>
         </div>
-        <table class="tabela-rozkaz" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <table class="tabela-rozkaz">
             <thead>
                 <tr>
-                    <th style="width: 30%; border-bottom: 2px solid black; text-align: left; padding: 8px;">GODZINY</th>
-                    <th style="width: 70%; border-bottom: 2px solid black; text-align: left; padding: 8px;">DRUHNA / DRUH (POSTERUNEK)</th>
+                    <th style="width: 30%;">GODZINY</th>
+                    <th style="width: 70%;">DRUHNA / DRUH (POSTERUNEK)</th>
                 </tr>
             </thead>
             <tbody>

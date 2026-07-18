@@ -34,7 +34,7 @@ st.markdown("""
         .badge-i { color: #ffffff !important; font-weight: bold; }
         .metric-card { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 10px; padding: 15px; text-align: center; }
         
-        /* --- STYLE DRUKOWANIA (UKRYWANIE ELEMENTÓW INTERFEJSU) --- */
+        /* --- STYLE DRUKOWANIA --- */
         @media print {
             body * { visibility: hidden; background: white !important; color: black !important; }
             .print-area, .print-area * { visibility: visible; }
@@ -194,7 +194,7 @@ else:
 
                         lokalizacje_dnia[godzina][slot_idx] = st.text_input(
                             "Miejsce warty:", value=lokalizacje_dnia[godzina][slot_idx], 
-                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama Główna"
+                            key=f"loc_{godzina}_{slot_idx}_{wybrany_dzien}", placeholder="np. Brama"
                         )
 
                         if plan_dnia[godzina][slot_idx]:
@@ -235,7 +235,7 @@ else:
         st.markdown("---")
         st.markdown("### 🖨️ Podgląd Rozkazu przed Wydrukiem")
 
-        # Generowanie czystego kodu HTML, który wyświetla się ładnie, a w druku ukrywa resztę strony
+        # Bezpieczne i czyste generowanie kodu tabeli bez mieszania ze składnią Markdown
         straznicy_tabela = ""
         for g, osoby in plan_dnia.items():
             straznicy_str = []
@@ -246,23 +246,18 @@ else:
                 straznicy_str.append(f"Post. {i+1}: {osoba_str}{m_str}")
             
             straznicy_html = "<br>".join(straznicy_str)
-            straznicy_tabela += f"""
-                <tr style="border-bottom: 1px solid black;">
-                    <td style="padding: 12px; font-weight: bold; font-size: 16px; vertical-align: top; width: 30%;">{g}</td>
-                    <td style="padding: 12px; font-size: 15px;">{straznicy_html}</td>
-                </tr>
-            """
+            straznicy_tabela += f"<tr style='border-bottom: 1px solid black;'><td style='padding: 12px; font-weight: bold; font-size: 16px; vertical-align: top; width: 30%; color: black;'>{g}</td><td style='padding: 12px; font-size: 15px; color: black;'>{straznicy_html}</td></tr>"
 
         kod_html_druku = f"""
-        <div class="print-area" style="background-color: white; color: black; padding: 30px; border-radius: 8px; border: 2px solid black; font-family: 'Courier New', monospace;">
-            <h2 style="text-align: center; margin-bottom: 5px; font-weight: bold; color: black;">ROZKAZ WART OBOZOWYCH</h2>
-            <p style="text-align: center; margin-top: 0; font-size: 14px; color: black;">Noc: {wybrany_dzien} | Wygenerowano: {datetime.now().strftime('%d.%m.%Y')}</p>
+        <div class="print-area" style="background-color: white !important; color: black !important; padding: 30px; border-radius: 8px; border: 2px solid black; font-family: 'Courier New', monospace;">
+            <h2 style="text-align: center; margin-bottom: 5px; font-weight: bold; color: black !important;">ROZKAZ WART OBOZOWYCH</h2>
+            <p style="text-align: center; margin-top: 0; font-size: 14px; color: black !important;">Noc: {wybrany_dzien} | Wygenerowano: {datetime.now().strftime('%d.%m.%Y')}</p>
             <hr style="border: 1px solid black; margin-bottom: 20px;">
-            <table style="width: 100%; border-collapse: collapse; color: black;">
+            <table style="width: 100%; border-collapse: collapse; color: black !important;">
                 <thead>
                     <tr style="border-bottom: 2px solid black; text-align: left;">
-                        <th style="padding: 12px; font-weight: bold;">GODZINA</th>
-                        <th style="padding: 12px; font-weight: bold;">OBSADA POSTERONKÓW</th>
+                        <th style="padding: 12px; font-weight: bold; color: black !important;">GODZINA</th>
+                        <th style="padding: 12px; font-weight: bold; color: black !important;">OBSADA POSTERONKÓW</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -270,15 +265,17 @@ else:
                 </tbody>
             </table>
             <br><br><br>
-            <p style="text-align: right; font-weight: bold; margin-right: 20px; color: black;">Podpisał: Komendant Obozu</p>
+            <p style="text-align: right; font-weight: bold; margin-right: 20px; color: black !important;">Podpisał: Komendant Obozu</p>
         </div>
         """
-        st.markdown(kod_html_druku, unsafe_allow_html=True)
+        
+        # Użycie st.html do poprawnego wyrenderowania struktury bez traktowania jej jako markdown
+        st.html(kod_html_druku)
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Przycisk uruchamiający systemowe okno drukowania (zapisz do PDF) z poziomu przeglądarki
-        if st.button("🖨️ DRUKUJ ROZKAZ NA TABLICĘ (ZAPISZ JAKO PDF)", type="secondary", use_container_width=True):
-            st.markdown("<script>window.print();</script>", unsafe_allow_html=True)
+        # Przycisk uruchamiający systemowe okno drukowania
+        if st.button("🖨️ URUCHOM DRUKOWANIE SYSTEMOWE (ZAPISZ JAKO PDF)", type="secondary", use_container_width=True):
+            st.html("<script>window.print();</script>")
 
     with tab_statystyki:
         st.markdown("#### 📊 Podsumowanie Obciążeń Służbami")
@@ -302,7 +299,7 @@ else:
             for d, warty in st.session_state.historia_wart.items():
                 for g, osoby in warty.items():
                     if pelne in osoby:
-                        slot_idx =裝osoby.index(pelne)
+                        slot_idx = osoby.index(pelne)
                         miejsce = st.session_state.lokalizacje_wart[d][g][slot_idx] if slot_idx < len(st.session_state.lokalizacje_wart[d][g]) else ""
                         miejsce_str = f" -> {miejsce}" if miejsce else ""
                         historia_osoby.append(f"Noc {d} ({g}{miejsce_str})")
